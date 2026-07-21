@@ -38,7 +38,7 @@ describe("dungeon graph", () => {
     const rng = makeRng(1234);
     const g = generateGraph("medium", rng);
     assignRoomTypes(g, "normal", rng);
-    embedGraph(g, rng);
+    embedGraph(g, rng, { partySize: 4 });
     const rects = [...g.nodes.values()].filter((n) => n.rect).map((n) => n.rect!);
     for (let i = 0; i < rects.length; i++) {
       for (let j = i + 1; j < rects.length; j++) {

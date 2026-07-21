@@ -89,11 +89,19 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
 
   const graph = generateGraph(input.size, rng);
   assignRoomTypes(graph, input.puzzleDensity ?? "normal", rng);
-  const embed = embedGraph(graph, rng);
 
   const partyLevel = Math.max(1, Math.min(20, Math.floor(input.partyLevel)));
   const partySize = input.partySize ?? 4;
   const climax = input.climaxThreat ?? "severe";
+
+  // Assign threats BEFORE embedding so room sizing can scale to the fight.
+  for (const node of graph.nodes.values()) {
+    if (node.roomType === "combat" || node.isBoss || node.isMiniBoss) {
+      node.threat = threatForRoom(node, climax);
+    }
+  }
+
+  const embed = embedGraph(graph, rng, { partySize });
 
   const nodes = [...graph.nodes.values()];
   const combatNodes = nodes.filter((n) => n.roomType === "combat");

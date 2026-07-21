@@ -11,12 +11,57 @@ const CORRIDOR_MIN = 3;
 const CORRIDOR_MAX = 8;
 const MARGIN = 1;
 
-function roomSizeFor(node: DungeonNode, rng: Rng): { w: number; h: number } {
-  if (node.isEntrance) return { w: rng.int(4, 6), h: rng.int(4, 6) };
-  if (node.isBoss) return { w: rng.int(9, 14), h: rng.int(9, 14) };
-  if (node.isMiniBoss) return { w: rng.int(7, 11), h: rng.int(7, 11) };
+interface RoomSizeInput {
+  partySize: number;
+}
+
+/**
+ * Room dimensions in tiles. Combat rooms scale up with threat and party size
+ * so there's actual tactical maneuvering space around the creatures — a
+ * "just fits" room becomes a stand-and-swing brawl in play.
+ */
+function roomSizeFor(node: DungeonNode, rng: Rng, opts: RoomSizeInput): { w: number; h: number } {
+  const partyBonus = Math.max(0, opts.partySize - 4); // extra tiles per direction
+
+  if (node.isEntrance) {
+    return { w: rng.int(5, 7) + partyBonus, h: rng.int(5, 7) + partyBonus };
+  }
+
+  // Boss climax: needs a real arena — room for large/huge boss + minions + party.
+  if (node.isBoss) {
+    const threat = node.threat ?? "severe";
+    const base = threat === "extreme" ? 14 : 12;
+    return {
+      w: rng.int(base, base + 4) + partyBonus,
+      h: rng.int(base, base + 4) + partyBonus,
+    };
+  }
+
+  if (node.isMiniBoss) {
+    return { w: rng.int(10, 13) + partyBonus, h: rng.int(10, 13) + partyBonus };
+  }
+
+  // Combat rooms scale by threat so a severe encounter isn't crammed into
+  // a 5x5 broom closet.
+  if (node.roomType === "combat") {
+    const threat = node.threat ?? "moderate";
+    const rangeByThreat: Record<string, [number, number]> = {
+      trivial: [6, 8],
+      low: [7, 9],
+      moderate: [8, 11],
+      severe: [10, 13],
+      extreme: [12, 15],
+    };
+    const [min, max] = rangeByThreat[threat] ?? [8, 11];
+    return { w: rng.int(min, max) + partyBonus, h: rng.int(min, max) + partyBonus };
+  }
+
+  // Non-combat rooms stay compact.
   if (node.isDeadEnd) return { w: rng.int(4, 7), h: rng.int(4, 7) };
-  return { w: rng.int(5, 9), h: rng.int(5, 9) };
+  if (node.roomType === "puzzle") return { w: rng.int(6, 9), h: rng.int(6, 9) };
+  if (node.roomType === "hazard") return { w: rng.int(6, 9), h: rng.int(6, 9) };
+  if (node.roomType === "loot") return { w: rng.int(5, 8), h: rng.int(5, 8) };
+  return { w: rng.int(5, 8), h: rng.int(5, 8) };
 }
 
 const DIRS: Array<[number, number]> = [
@@ -90,14 +135,14 @@ export interface EmbeddedDungeon {
 }
 
 /** Assigns rects to each node in-place and returns corridor segments + bounds. */
-export function embedGraph(graph: DungeonGraph, rng: Rng): EmbeddedDungeon {
+export function embedGraph(graph: DungeonGraph, rng: Rng, opts: { partySize: number }): EmbeddedDungeon {
   const placed: Rect[] = [];
   const corridors: CorridorSegment[] = [];
 
   const order = topologicalOrder(graph);
 
   const entrance = graph.nodes.get(order[0]!)!;
-  const eSize = roomSizeFor(entrance, rng);
+  const eSize = roomSizeFor(entrance, rng, opts);
   entrance.rect = { x: 0, y: 0, w: eSize.w, h: eSize.h };
   placed.push(entrance.rect);
 
@@ -109,7 +154,7 @@ export function embedGraph(graph: DungeonGraph, rng: Rng): EmbeddedDungeon {
     const parent = graph.nodes.get(parentId)!;
     if (!parent.rect) continue;
 
-    const size = roomSizeFor(node, rng);
+    const size = roomSizeFor(node, rng, opts);
     let placement = tryPlaceAdjacent(parent.rect, size, placed, rng);
     if (!placement) {
       const size2 = { w: Math.max(3, size.w - 2), h: Math.max(3, size.h - 2) };
