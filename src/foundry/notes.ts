@@ -48,6 +48,25 @@ export async function placeRoomNotes(
       elevation: 0,
       flags: { [MODULE_ID]: { roomId: room.node.id, roomNumber } },
     });
+
+    if (room.node.isEntrance) {
+      notes.push({
+        x: cx,
+        y: cy - 60,
+        entryId: journal.id,
+        pageId: page?.id ?? null,
+        text: "ENTRANCE",
+        icon: "icons/svg/door-steel.svg",
+        iconSize: 64,
+        iconTint: "#66ff66",
+        fontSize: 28,
+        textAnchor: 1,
+        textColor: "#ffffff",
+        hidden: false,
+        elevation: 0,
+        flags: { [MODULE_ID]: { roomId: room.node.id, entrance: true } },
+      });
+    }
   });
 
   if (notes.length === 0) return;

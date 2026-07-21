@@ -69,6 +69,19 @@ export async function buildScene(
   const walls = buildWallsAndDoors(plan.graph, embed, gridPx);
   const lights = buildLights(plan.graph, embed, archetype, plan.input.lighting, gridPx);
 
+  // Center the initial view on the entrance room so GMs and players immediately
+  // see the party's starting location when the scene loads.
+  const entranceRoom = plan.rooms.find((r) => r.node.isEntrance) ?? plan.rooms[0];
+  let initial: any = null;
+  if (entranceRoom?.node.rect) {
+    const r = entranceRoom.node.rect;
+    initial = {
+      x: Math.round((r.x + r.w / 2) * gridPx),
+      y: Math.round((r.y + r.h / 2) * gridPx),
+      scale: 0.6,
+    };
+  }
+
   // v14: the visible background lives on a Level, not the scene root.
   // We create one ground-floor level and hang the background off it.
   // Set scene root background to empty string for compat with older readers.
@@ -89,7 +102,7 @@ export async function buildScene(
     levels: [levelDoc],
     grid: { type: 1, size: gridPx, distance: 5, units: "ft" },
     padding: 0,
-    initial: null,
+    initial,
     tokenVision: true,
     fog: { exploration: false, reset: 0 },
     darkness: darknessForLighting(plan.input.lighting),

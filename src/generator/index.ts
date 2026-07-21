@@ -42,6 +42,17 @@ function threatForRoom(node: DungeonNode, climax: "severe" | "extreme"): Threat 
   return "moderate";
 }
 
+function summarizeEncounter(enc: {
+  creatures: Array<{ name: string }>;
+}): { count: number; primaryName?: string } {
+  if (!enc.creatures.length) return { count: 0 };
+  const byName = new Map<string, number>();
+  for (const c of enc.creatures) byName.set(c.name, (byName.get(c.name) ?? 0) + 1);
+  const sorted = [...byName.entries()].sort((a, b) => b[1] - a[1]);
+  const primary = sorted[0]!;
+  return { count: enc.creatures.length, primaryName: primary[0] };
+}
+
 export interface GenerationResult {
   plan: DungeonPlan;
   embed: EmbeddedDungeon;
@@ -84,9 +95,9 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
 
   for (const node of nodes) {
     const roomType = node.roomType;
-    const readAloud = generateReadAloud(node, roomType, archetype, rng);
     const extras: string[] = [];
-    const room: RoomContent = { node, readAloud, gmNotes: "" };
+    const room: RoomContent = { node, readAloud: "", gmNotes: "" };
+    let encounterHint: { count: number; primaryName?: string } | undefined;
 
     if (roomType === "combat") {
       const threat = threatForRoom(node, climax);
@@ -110,6 +121,7 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
         if (drop && (drop.items.length > 0 || drop.gp > 0)) room.loot = drop;
       }
       extras.push(`Encounter: ${enc.creatures.length} creatures, ${enc.xpSpent}/${enc.xpBudget} XP (${threat}).`);
+      encounterHint = summarizeEncounter(enc);
     } else if (roomType === "hazard") {
       const hz = pickHazard(partyLevel, archetype, rng);
       if (hz) {
@@ -132,6 +144,7 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
       }
     }
 
+    room.readAloud = generateReadAloud(node, roomType, archetype, rng, encounterHint);
     room.gmNotes = generateGmNotes(roomType, archetype, rng, extras);
     rooms.push(room);
   }

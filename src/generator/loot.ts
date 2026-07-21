@@ -1,12 +1,13 @@
 /**
  * Dungeon loot budgeter.
  *
- * Distribution model (tuned for felt balance, not strict PF2e GMG table):
- *   - Most permanent items sit at party level -3 to -4 (low, common).
- *   - Some at party level -2 to -1 (mid, occasional).
- *   - At-level items are rare: at most 0-2 per dungeon, weighted by generosity.
+ * Distribution model (skewed low for a "scavenging" feel):
+ *   - Most permanent items at party level - 5 (floored at 0). Bulk of loot.
+ *   - 1-2 mid-tier items at party level -2 to -3.
+ *   - At-level items go ONLY in the boss hoard (0-1 per dungeon, gated by
+ *     generosity). Regular loot rooms and combat drops never exceed level -2.
+ *   - Consumables mostly at party level -4 to -2, gated at party level -1.
  *   - Never above party level.
- * GP scales roughly with the sum of item budgets and generosity.
  */
 import type { IndexEntry } from "../pf2e/adapter.js";
 import { getItems } from "../pf2e/adapter.js";
@@ -19,10 +20,10 @@ const GENEROSITY_MULT: Record<LootGenerosity, number> = {
 };
 
 interface LootBudget {
-  low: number; // party level -3..-4
-  mid: number; // party level -1..-2
-  atLevel: number; // party level (rare)
-  consumables: number; // level -3..-1
+  low: number; // party level -5 (min 0). Bulk.
+  mid: number; // party level -2..-3. 1-2 items.
+  bossAtLevel: number; // party level. 0-1 in boss hoard only.
+  consumables: number; // party level -4..-2 (up to -1 rarely).
   gp: number;
 }
 
@@ -34,20 +35,17 @@ function budgetFor(
 ): LootBudget {
   const gen = GENEROSITY_MULT[generosity];
   const enc = Math.max(1, encounterCount);
-  const lowCount = Math.round(3 * (enc / 8) * gen + 1);
-  const midCount = Math.round(1.5 * (enc / 8) * gen);
-  let atCount: number;
-  if (generosity === "stingy") {
-    atCount = rng.chance(0.4) ? 1 : 0;
-  } else if (generosity === "generous") {
-    atCount = rng.chance(0.85) ? 1 + rng.int(0, 1) : 0;
-  } else {
-    atCount = rng.chance(0.55) ? 1 + rng.int(0, 1) : 0;
-  }
-  const consumables = Math.round(4 * (enc / 8) * gen + 1);
+  const encScale = enc / 8;
+  const lowCount = Math.max(2, Math.round(4 * encScale * gen + 1));
+  const midCount = generosity === "stingy" ? (rng.chance(0.5) ? 1 : 0) : 1 + (rng.chance(0.5) ? 1 : 0);
+  let bossAt: number;
+  if (generosity === "stingy") bossAt = rng.chance(0.3) ? 1 : 0;
+  else if (generosity === "generous") bossAt = rng.chance(0.9) ? 1 : 0;
+  else bossAt = rng.chance(0.6) ? 1 : 0;
+  const consumables = Math.round(3 * encScale * gen + 1);
   const gpCurve = Math.max(1, partyLevel) ** 1.8;
-  const gp = Math.round(gpCurve * 6 * gen * (enc / 8));
-  return { low: lowCount, mid: midCount, atLevel: Math.min(2, atCount), consumables, gp };
+  const gp = Math.round(gpCurve * 6 * gen * encScale);
+  return { low: lowCount, mid: midCount, bossAtLevel: bossAt, consumables, gp };
 }
 
 function isConsumableTrait(e: IndexEntry): boolean {
@@ -67,11 +65,13 @@ function pickItem(
   maxLevel: number,
   rng: Rng,
 ): LootItem | null {
+  const clampedMin = Math.max(0, minLevel);
+  const clampedMax = Math.max(clampedMin, maxLevel);
   const all = getItems();
   const pool = all.filter((it) => {
-    if (it.level < minLevel || it.level > maxLevel) return false;
+    if (it.level < clampedMin || it.level > clampedMax) return false;
     if (it.rarity === "unique") return false;
-    if (it.rarity === "rare" && rng.chance(0.85)) return false;
+    if (it.rarity === "rare" && rng.chance(0.9)) return false;
     return category === "consumable" ? isConsumableTrait(it) : !isConsumableTrait(it);
   });
   if (pool.length === 0) return null;
@@ -95,45 +95,58 @@ export function allocateLoot(
   const encounterCount = Math.max(1, numCombatRooms);
   const budget = budgetFor(partyLevel, encounterCount, generosity, rng);
 
-  const permanentItems: LootItem[] = [];
-  const lowMin = Math.max(0, partyLevel - 4);
-  const lowMax = Math.max(0, partyLevel - 3);
+  // BULK LOW-LEVEL POOL: goes to vaults + combat drops.
+  const lowPool: LootItem[] = [];
+  const lowTarget = Math.max(0, partyLevel - 5);
   for (let i = 0; i < budget.low; i++) {
-    const it = pickItem("permanent", lowMin, lowMax, rng);
-    if (it) permanentItems.push(it);
-  }
-  const midMin = Math.max(0, partyLevel - 2);
-  const midMax = Math.max(0, partyLevel - 1);
-  for (let i = 0; i < budget.mid; i++) {
-    const it = pickItem("permanent", midMin, midMax, rng);
-    if (it) permanentItems.push(it);
-  }
-  for (let i = 0; i < budget.atLevel; i++) {
-    const it = pickItem("permanent", partyLevel, partyLevel, rng);
-    if (it) permanentItems.push(it);
+    const it = pickItem("permanent", lowTarget, lowTarget, rng);
+    if (it) lowPool.push(it);
   }
 
+  // MID-TIER: 1-2 items, distributed across vaults.
+  const midPool: LootItem[] = [];
+  const midMin = Math.max(0, partyLevel - 3);
+  const midMax = Math.max(0, partyLevel - 2);
+  for (let i = 0; i < budget.mid; i++) {
+    const it = pickItem("permanent", midMin, midMax, rng);
+    if (it) midPool.push(it);
+  }
+
+  // BOSS at-level candidate: 0-1 item, boss hoard only.
+  const bossOnly: LootItem[] = [];
+  for (let i = 0; i < budget.bossAtLevel; i++) {
+    const it = pickItem("permanent", partyLevel, partyLevel, rng);
+    if (it) bossOnly.push(it);
+  }
+
+  // CONSUMABLES: mostly low (party -4..-2), rare chance one at party -1.
   const consumableItems: LootItem[] = [];
-  const consMin = Math.max(0, partyLevel - 3);
-  const consMax = Math.max(0, partyLevel - 1);
+  const consMin = Math.max(0, partyLevel - 4);
+  const consMax = Math.max(0, partyLevel - 2);
   for (let i = 0; i < budget.consumables; i++) {
-    const it = pickItem("consumable", consMin, consMax, rng);
+    const bumpTop = rng.chance(0.15) && partyLevel - 1 > consMax;
+    const it = pickItem(
+      "consumable",
+      consMin,
+      bumpTop ? partyLevel - 1 : consMax,
+      rng,
+    );
     if (it) consumableItems.push(it);
   }
 
-  rng.shuffle(permanentItems);
+  rng.shuffle(lowPool);
+  rng.shuffle(midPool);
   rng.shuffle(consumableItems);
 
-  const vaultShare = 0.55;
-  const permForVaults = Math.round(permanentItems.length * vaultShare);
-  const permForBoss = Math.min(
-    permanentItems.length - permForVaults,
-    Math.max(1, Math.ceil(permanentItems.length * 0.25)),
-  );
+  // Merge low + mid into a "regular" pool for splitting; boss keeps its own.
+  const regularPool: LootItem[] = [...lowPool, ...midPool];
 
-  const vaultItems = permanentItems.slice(0, permForVaults);
-  const bossPerm = permanentItems.slice(permForVaults, permForVaults + permForBoss);
-  const combatPerm = permanentItems.slice(permForVaults + permForBoss);
+  const vaultShare = 0.65;
+  const regularForVaults = Math.round(regularPool.length * vaultShare);
+  const regularForCombat = regularPool.length - regularForVaults;
+
+  const vaultItems = regularPool.slice(0, regularForVaults);
+  const combatPerm = regularPool.slice(regularForVaults, regularForVaults + regularForCombat);
 
   const consForCombat = Math.round(consumableItems.length * 0.5);
   const consForBoss = Math.min(
@@ -168,7 +181,7 @@ export function allocateLoot(
   combatDrops[0]!.gp += gpForCombat - gpPerCombat * combatDropCount;
 
   const bossHoard: LootContent = {
-    items: [...bossPerm, ...bossCons],
+    items: [...bossOnly, ...bossCons],
     gp: gpForBoss,
     fromDefeated: true,
   };

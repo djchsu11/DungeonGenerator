@@ -22,20 +22,28 @@ export interface RoomProse {
   gmNotes: string;
 }
 
+export interface EncounterHint {
+  count: number;
+  primaryName?: string;
+}
+
 export function generateReadAloud(
   node: DungeonNode,
   roomType: RoomType,
   archetype: ArchetypeDef,
   rng: Rng,
+  encounter?: EncounterHint,
 ): string {
   const wb = archetype.wordBank;
   if (node.isEntrance) {
-    return rng.pick(wb.entranceDescriptions);
+    const base = rng.pick(wb.entranceDescriptions);
+    return `${base}\n\n**This is the party's entry point into the dungeon.**`;
   }
   if (node.isBoss) {
     const climax = rng.pick(wb.climaxDescriptions);
     const detail = rng.pick(wb.featureDetails);
-    return `${climax} ${detail}`;
+    const enemyLine = encounter ? " " + monsterHint(encounter, rng, true) : "";
+    return `${climax} ${detail}${enemyLine}`;
   }
 
   const chamber = rng.pick(wb.chamberNouns);
@@ -64,7 +72,45 @@ export function generateReadAloud(
 
   let extra = "";
   if (roomType === "empty" || rng.chance(0.4)) extra = " " + detail;
-  return `${opener} ${sensory} ${ambient}${extra}`;
+  const enemyLine = encounter ? " " + monsterHint(encounter, rng, false) : "";
+  return `${opener} ${sensory} ${ambient}${extra}${enemyLine}`;
+}
+
+function articleFor(word: string): string {
+  return /^[aeiou]/i.test(word) ? "an" : "a";
+}
+
+function pluralize(name: string, count: number): string {
+  if (count <= 1) return name;
+  if (/s$/i.test(name)) return name;
+  if (/(ch|sh|x|z)$/i.test(name)) return name + "es";
+  if (/[^aeiou]y$/i.test(name)) return name.slice(0, -1) + "ies";
+  return name + "s";
+}
+
+function countPhrase(count: number, name: string): string {
+  const words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+  if (count === 1) return `${articleFor(name)} ${name}`;
+  const numWord = count >= 1 && count <= 10 ? words[count - 1]! : String(count);
+  return `${numWord} ${pluralize(name, count)}`;
+}
+
+function monsterHint(enc: EncounterHint, rng: Rng, boss: boolean): string {
+  const name = enc.primaryName ?? "menacing figure";
+  const phrase = countPhrase(enc.count, name.toLowerCase());
+  if (boss) {
+    return rng.weighted([
+      { weight: 2, value: `At the far end waits ${phrase}, watching you approach.` },
+      { weight: 2, value: `${cap(phrase)} awaits — plainly the master of this place.` },
+      { weight: 1, value: `You are not alone: ${phrase} rises to meet you.` },
+    ]);
+  }
+  return rng.weighted([
+    { weight: 3, value: `You spot ${phrase} within.` },
+    { weight: 2, value: `${cap(phrase)} moves in the gloom ahead.` },
+    { weight: 2, value: `The room is not empty — ${phrase} awaits.` },
+    { weight: 1, value: `Something stirs: ${phrase}.` },
+  ]);
 }
 
 export function generateGmNotes(
