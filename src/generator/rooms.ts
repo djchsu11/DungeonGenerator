@@ -43,7 +43,13 @@ export function assignRoomTypes(
   const mini = nodes.find((n) => n.isMiniBoss);
   if (mini) mini.roomType = "combat";
 
-  const remaining = nodes.filter((n) => !n.isEntrance && !n.isBoss && !n.isMiniBoss);
+  // Secret rooms are always loot rooms — they carry a share of the treasure
+  // budget behind a hidden door.
+  for (const n of nodes) {
+    if (n.isSecret) n.roomType = "loot";
+  }
+
+  const remaining = nodes.filter((n) => !n.isEntrance && !n.isBoss && !n.isMiniBoss && !n.isSecret);
   const total = nodes.length;
 
   const puzzles = puzzleCountFor(total, puzzleDensity, rng);

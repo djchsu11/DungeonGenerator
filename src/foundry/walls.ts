@@ -40,37 +40,42 @@ function door(x1: number, y1: number, x2: number, y2: number): Wall {
   return { c: [x1, y1, x2, y2], door: 1, ds: 0, move: 20, sight: 20, sound: 20, light: 20 };
 }
 
+function secretDoor(x1: number, y1: number, x2: number, y2: number): Wall {
+  return { c: [x1, y1, x2, y2], door: 2, ds: 0, move: 20, sight: 20, sound: 20, light: 20 };
+}
+
 /** Returns all corridors that touch a given room side, as [pos, length] pairs. */
 function openingsOnSide(
   roomId: string,
   side: "top" | "bottom" | "left" | "right",
   graph: DungeonGraph,
   corridors: CorridorSegment[],
-): Array<{ start: number; end: number; door: boolean }> {
+): Array<{ start: number; end: number; door: boolean; secret: boolean }> {
   const room = graph.nodes.get(roomId);
   if (!room?.rect) return [];
   const r = room.rect;
-  const openings: Array<{ start: number; end: number; door: boolean }> = [];
+  const openings: Array<{ start: number; end: number; door: boolean; secret: boolean }> = [];
   for (const c of corridors) {
     if (c.from !== roomId && c.to !== roomId) continue;
     const facingRoom = c.from === roomId ? { x: c.ax, y: c.ay } : { x: c.bx, y: c.by };
     const width = 3;
+    const secret = !!c.isSecretDoor;
     if (side === "right" && facingRoom.x === r.x + r.w) {
       const s = Math.max(r.y, facingRoom.y - width / 2);
       const e = Math.min(r.y + r.h, facingRoom.y + width / 2);
-      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor });
+      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor, secret });
     } else if (side === "left" && facingRoom.x === r.x) {
       const s = Math.max(r.y, facingRoom.y - width / 2);
       const e = Math.min(r.y + r.h, facingRoom.y + width / 2);
-      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor });
+      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor, secret });
     } else if (side === "bottom" && facingRoom.y === r.y + r.h) {
       const s = Math.max(r.x, facingRoom.x - width / 2);
       const e = Math.min(r.x + r.w, facingRoom.x + width / 2);
-      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor });
+      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor, secret });
     } else if (side === "top" && facingRoom.y === r.y) {
       const s = Math.max(r.x, facingRoom.x - width / 2);
       const e = Math.min(r.x + r.w, facingRoom.x + width / 2);
-      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor });
+      if (e > s) openings.push({ start: s, end: e, door: c.hasDoor, secret });
     }
   }
   return openings.sort((a, b) => a.start - b.start);
@@ -81,7 +86,7 @@ function segmentSide(
   varStart: number,
   varEnd: number,
   isHorizontal: boolean,
-  openings: Array<{ start: number; end: number; door: boolean }>,
+  openings: Array<{ start: number; end: number; door: boolean; secret: boolean }>,
   gridPx: number,
 ): Wall[] {
   const walls: Wall[] = [];
@@ -94,14 +99,14 @@ function segmentSide(
           : wall(fixedCoord * gridPx, cursor * gridPx, fixedCoord * gridPx, op.start * gridPx),
       );
     }
-    walls.push(
-      op.door
-        ? isHorizontal
-          ? door(op.start * gridPx, fixedCoord * gridPx, op.end * gridPx, fixedCoord * gridPx)
-          : door(fixedCoord * gridPx, op.start * gridPx, fixedCoord * gridPx, op.end * gridPx)
-        : (null as any),
-    );
-    if (!op.door) walls.pop();
+    if (op.door) {
+      const makeDoor = op.secret ? secretDoor : door;
+      walls.push(
+        isHorizontal
+          ? makeDoor(op.start * gridPx, fixedCoord * gridPx, op.end * gridPx, fixedCoord * gridPx)
+          : makeDoor(fixedCoord * gridPx, op.start * gridPx, fixedCoord * gridPx, op.end * gridPx),
+      );
+    }
     cursor = op.end;
   }
   if (cursor < varEnd) {

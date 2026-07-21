@@ -153,7 +153,10 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
 
   const nodes = [...graph.nodes.values()];
   const combatNodes = nodes.filter((n) => n.roomType === "combat");
-  const lootNodes = nodes.filter((n) => n.roomType === "loot");
+  // Put secret loot rooms first so the allocator can boost their share.
+  const secretLootNodes = nodes.filter((n) => n.roomType === "loot" && n.isSecret);
+  const regularLootNodes = nodes.filter((n) => n.roomType === "loot" && !n.isSecret);
+  const lootNodes = [...secretLootNodes, ...regularLootNodes];
 
   const loot = allocateLoot(
     partyLevel,
@@ -161,6 +164,7 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
     lootNodes.length,
     input.lootGenerosity ?? "standard",
     rng,
+    secretLootNodes.length,
   );
 
   const rooms: RoomContent[] = [];

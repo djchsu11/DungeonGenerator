@@ -41,6 +41,42 @@ function makeNode(depth: number): DungeonNode {
   };
 }
 
+const SECRET_ROOMS_PER_SIZE: Record<DungeonSize, number> = {
+  small: 1,
+  medium: 2,
+  large: 3,
+  huge: 4,
+};
+
+/**
+ * Attach N "secret" leaf rooms to random non-boss/non-entrance nodes. Each
+ * secret room connects via a hidden secret door and will later be assigned
+ * roomType="loot" so it carries part of the dungeon's treasure budget.
+ */
+function addSecretRooms(
+  nodes: Map<string, DungeonNode>,
+  edges: DungeonEdge[],
+  size: DungeonSize,
+  rng: Rng,
+): void {
+  const count = SECRET_ROOMS_PER_SIZE[size];
+  const candidates: DungeonNode[] = [];
+  for (const n of nodes.values()) {
+    if (n.isEntrance || n.isBoss || n.isMiniBoss || n.isSecret) continue;
+    candidates.push(n);
+  }
+  if (candidates.length === 0) return;
+
+  const shuffled = rng.shuffle(candidates);
+  for (let i = 0; i < count && i < shuffled.length; i++) {
+    const anchor = shuffled[i]!;
+    const secret = makeNode(anchor.depth + 1);
+    secret.isSecret = true;
+    secret.isDeadEnd = true;
+    nodes.set(secret.id, secret);
+    edges.push({ from: anchor.id, to: secret.id, hasDoor: true, isSecretDoor: true });
+  }
+}
 export function generateGraph(size: DungeonSize, rng: Rng): DungeonGraph {
   idCounter = 0;
   const shape = SIZE_SHAPES[size];
@@ -118,6 +154,8 @@ export function generateGraph(size: DungeonSize, rng: Rng): DungeonGraph {
       }
     }
   }
+
+  addSecretRooms(nodes, edges, size, rng);
 
   return { nodes, edges };
 }

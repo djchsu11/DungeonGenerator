@@ -79,7 +79,7 @@ function overviewHtml(plan: DungeonPlan): string {
     plan.rooms
       .map(
         (r, i) =>
-          `<li>${roomIndexLabel(i)}: ${r.node.roomType}${r.node.isBoss ? " (BOSS)" : r.node.isMiniBoss ? " (mini-boss)" : r.node.isEntrance ? " (entrance)" : ""}</li>`,
+          `<li>${roomIndexLabel(i)}: ${r.node.roomType}${r.node.isBoss ? " (BOSS)" : r.node.isMiniBoss ? " (mini-boss)" : r.node.isEntrance ? " (entrance)" : r.node.isSecret ? " (SECRET)" : ""}</li>`,
       )
       .join("") +
     `</ol>`
@@ -91,7 +91,8 @@ function roomPageHtml(room: RoomContent, index: number): string {
   if (room.node.isEntrance) flags.push("Entrance");
   if (room.node.isBoss) flags.push("BOSS");
   if (room.node.isMiniBoss) flags.push("Mini-boss");
-  if (room.node.isDeadEnd) flags.push("dead-end");
+  if (room.node.isSecret) flags.push("SECRET — behind hidden door");
+  if (room.node.isDeadEnd && !room.node.isSecret) flags.push("dead-end");
   const readAloudParts: string[] = [`<p><em>${room.readAloud}</em></p>`];
   if (room.puzzle?.readAloud) {
     readAloudParts.push(`<p><em>${room.puzzle.readAloud}</em></p>`);

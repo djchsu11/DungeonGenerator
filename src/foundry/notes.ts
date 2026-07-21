@@ -37,16 +37,16 @@ export async function placeRoomNotes(
       y: cy,
       entryId: journal.id,
       pageId: page?.id ?? null,
-      text: String(roomNumber),
+      text: room.node.isSecret ? `${roomNumber} (S)` : String(roomNumber),
       icon: "icons/svg/circle.svg",
       iconSize: 40,
-      iconTint: "#ffcc33",
+      iconTint: room.node.isSecret ? "#cc66ff" : "#ffcc33",
       fontSize: 32,
       textAnchor: 2,
       textColor: "#ffffff",
       hidden: true,
       elevation: 0,
-      flags: { [MODULE_ID]: { roomId: room.node.id, roomNumber } },
+      flags: { [MODULE_ID]: { roomId: room.node.id, roomNumber, secret: !!room.node.isSecret } },
     });
 
     if (room.node.isEntrance) {

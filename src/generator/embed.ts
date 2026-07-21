@@ -112,8 +112,10 @@ export interface CorridorSegment {
   ay: number;
   bx: number;
   by: number;
-  /** true if this connection includes a door door segment. */
+  /** true if this connection includes a door segment. */
   hasDoor: boolean;
+  /** true if the door segment should be a hidden (secret) door. */
+  isSecretDoor?: boolean;
 }
 
 export interface EmbeddedDungeon {
@@ -169,7 +171,7 @@ export function embedGraph(
     placed.push(node.rect);
 
     corridors.push(
-      corridorBetween(parent, node, placement.dir, parentEdge.hasDoor),
+      corridorBetween(parent, node, placement.dir, parentEdge.hasDoor, parentEdge.isSecretDoor),
     );
   }
 
@@ -179,7 +181,7 @@ export function embedGraph(
     const b = graph.nodes.get(edge.to)!;
     if (!a.rect || !b.rect) continue;
     const dir = pickDirection(a.rect, b.rect);
-    corridors.push(corridorBetween(a, b, dir, edge.hasDoor));
+    corridors.push(corridorBetween(a, b, dir, edge.hasDoor, edge.isSecretDoor));
   }
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -219,6 +221,7 @@ function corridorBetween(
   b: DungeonNode,
   dir: [number, number],
   hasDoor: boolean,
+  isSecretDoor?: boolean,
 ): CorridorSegment {
   const ar = a.rect!;
   const br = b.rect!;
@@ -244,7 +247,7 @@ function corridorBetween(
     bx = br.x + Math.floor(br.w / 2);
     by = br.y + br.h;
   }
-  return { from: a.id, to: b.id, ax, ay, bx, by, hasDoor };
+  return { from: a.id, to: b.id, ax, ay, bx, by, hasDoor, isSecretDoor };
 }
 
 function topologicalOrder(graph: DungeonGraph): string[] {

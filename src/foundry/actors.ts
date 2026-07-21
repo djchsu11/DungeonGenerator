@@ -255,7 +255,7 @@ export async function placeTokens(plan: DungeonPlan, scene: any): Promise<void> 
           tokenObj.y = ly;
           tokenObj.width = 1;
           tokenObj.height = 1;
-          tokenObj.hidden = room.loot.fromDefeated;
+          tokenObj.hidden = true;
           tokenObj.disposition = 0;
           tokenObj.elevation = 0;
           tokenObj.name = lootActor.name;

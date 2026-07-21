@@ -54,6 +54,7 @@ export interface DungeonNode {
   isMiniBoss: boolean;
   isDeadEnd: boolean;
   isEntrance: boolean;
+  isSecret?: boolean; // hidden behind a secret door; contains bonus loot
   threat?: Threat;
   rect?: Rect; // filled in after spatial embedding
 }
@@ -62,6 +63,7 @@ export interface DungeonEdge {
   from: string;
   to: string;
   hasDoor: boolean;
+  isSecretDoor?: boolean; // rendered as a Foundry "secret" door (GM-only)
 }
 
 export interface DungeonGraph {

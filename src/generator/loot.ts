@@ -136,6 +136,7 @@ export function allocateLoot(
   numLootRooms: number,
   generosity: LootGenerosity,
   rng: Rng,
+  numSecretVaults = 0,
 ): AllocatedLoot {
   const encounterCount = Math.max(1, numCombatRooms);
   const budget = budgetFor(partyLevel, encounterCount, generosity, rng);
@@ -208,12 +209,44 @@ export function allocateLoot(
   const gpForCombat = gpTotal - gpForVaults - gpForBoss;
 
   const vaultCount = Math.max(1, numLootRooms);
+  const secretCount = Math.max(0, Math.min(numSecretVaults, vaultCount));
   const vaultHoards: LootContent[] = [];
   for (let i = 0; i < vaultCount; i++) vaultHoards.push({ items: [], gp: 0, fromDefeated: false });
-  vaultItems.forEach((it, i) => vaultHoards[i % vaultCount]!.items.push(it));
-  vaultCons.forEach((it, i) => vaultHoards[i % vaultCount]!.items.push(it));
-  const vaultGpSplit = jitterSplit(gpForVaults, vaultCount, rng, 1);
-  vaultHoards.forEach((h, i) => (h.gp = vaultGpSplit[i] ?? 0));
+
+  // Route mid-tier items to secret vaults first — finding a hidden door
+  // should feel more rewarding than opening the vault behind an unlocked door.
+  const midInVault = vaultItems.filter((it) => it.level >= Math.max(0, partyLevel - 3));
+  const lowInVault = vaultItems.filter((it) => it.level < Math.max(0, partyLevel - 3));
+  const orderedVaultItems: LootItem[] = [];
+  // Interleave: give each secret vault a mid-tier item before falling through
+  // to normal round-robin distribution.
+  for (let i = 0; i < secretCount && i < midInVault.length; i++) {
+    orderedVaultItems.push(midInVault[i]!);
+  }
+  const remainingMids = midInVault.slice(secretCount);
+  orderedVaultItems.push(...remainingMids, ...lowInVault);
+  orderedVaultItems.forEach((it, i) => vaultHoards[i % vaultCount]!.items.push(it));
+  vaultCons.forEach((it, i) => vaultHoards[(i + secretCount) % vaultCount]!.items.push(it));
+
+  // Weight gp toward secret vaults (2x share each) so a secret room has a
+  // meaningfully heavier coin pile than a regular one.
+  const gpWeights = new Array<number>(vaultCount).fill(1);
+  for (let i = 0; i < secretCount; i++) gpWeights[i] = 2;
+  const totalWeight = gpWeights.reduce((s, w) => s + w, 0);
+  const baseGpSplit = jitterSplit(gpForVaults, vaultCount, rng, 1);
+  // Multiply each pile by its weight ratio while preserving the total.
+  const weightedRaw = baseGpSplit.map((g, i) => g * (gpWeights[i]! * vaultCount) / totalWeight);
+  const weightedTotal = weightedRaw.reduce((s, v) => s + v, 0);
+  const scale = weightedTotal > 0 ? gpForVaults / weightedTotal : 1;
+  const weightedFloor = weightedRaw.map((v) => Math.floor(v * scale));
+  let leftover = gpForVaults - weightedFloor.reduce((s, v) => s + v, 0);
+  while (leftover > 0) {
+    // Give leftover to secret vaults first, then largest by weight.
+    const idx = leftover > 0 ? rng.int(0, secretCount > 0 ? secretCount - 1 : vaultCount - 1) : 0;
+    weightedFloor[idx]! += 1;
+    leftover--;
+  }
+  vaultHoards.forEach((h, i) => (h.gp = weightedFloor[i] ?? 0));
 
   const combatDropCount = Math.max(1, numCombatRooms);
   const combatDrops: LootContent[] = [];
