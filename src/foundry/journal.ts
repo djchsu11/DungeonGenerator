@@ -39,7 +39,7 @@ function puzzleHtml(room: RoomContent): string {
   if (!room.puzzle) return "";
   return (
     `<h3>Puzzle: ${room.puzzle.title}</h3>` +
-    `<p><strong>DC ${room.puzzle.dc}</strong> — see room read-aloud above.</p>` +
+    `<p><strong>DC ${room.puzzle.dc}</strong></p>` +
     `<p><em>GM notes:</em> ${room.puzzle.gmNotes}</p>` +
     `<p><em>Solution:</em> ${room.puzzle.solutionSummary}</p>`
   );
@@ -92,9 +92,13 @@ function roomPageHtml(room: RoomContent, index: number): string {
   if (room.node.isBoss) flags.push("BOSS");
   if (room.node.isMiniBoss) flags.push("Mini-boss");
   if (room.node.isDeadEnd) flags.push("dead-end");
+  const readAloudParts: string[] = [`<p><em>${room.readAloud}</em></p>`];
+  if (room.puzzle?.readAloud) {
+    readAloudParts.push(`<p><em>${room.puzzle.readAloud}</em></p>`);
+  }
   return (
     `<h2>${roomIndexLabel(index)}${flags.length ? " — " + flags.join(", ") : ""}</h2>` +
-    `<h3>Read-aloud</h3><p><em>${room.readAloud}</em></p>` +
+    `<h3>Read-aloud</h3>${readAloudParts.join("")}` +
     encounterHtml(room) +
     hazardHtml(room) +
     puzzleHtml(room) +

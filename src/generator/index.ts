@@ -91,7 +91,10 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
     if (roomType === "combat") {
       const threat = threatForRoom(node, climax);
       node.threat = threat;
-      const enc = buildEncounter({ threat, partyLevel, partySize, filter, rng });
+      const maxCreatureTiles = node.rect
+        ? Math.max(1, Math.min(node.rect.w, node.rect.h) - 2)
+        : undefined;
+      const enc = buildEncounter({ threat, partyLevel, partySize, filter, rng, maxCreatureTiles });
       room.encounter = enc;
       if (node.isBoss || node.isMiniBoss) {
         const ident = generateBossIdentity(rng);

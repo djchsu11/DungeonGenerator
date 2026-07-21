@@ -6,23 +6,24 @@ import { findFamily } from "../src/families/bundles";
 import { makeRng } from "../src/rng";
 
 function fakeCreatures() {
-  const build = (name: string, level: number, traits: string[]) => ({
+  const build = (name: string, level: number, traits: string[], sizeTiles = 1) => ({
     uuid: `Fake.${name}`,
     name,
     level,
     traits,
     rarity: "common" as const,
     kind: "npc",
+    sizeTiles,
   });
   return [
     build("Goblin Warrior", 1, ["goblin", "humanoid"]),
     build("Goblin Commando", 3, ["goblin", "humanoid"]),
     build("Hobgoblin Soldier", 1, ["hobgoblin", "humanoid"]),
-    build("Bugbear Thug", 2, ["bugbear", "humanoid"]),
+    build("Bugbear Thug", 2, ["bugbear", "humanoid"], 2),
     build("Goblin Dog", 1, ["dog", "animal"]),
     build("Skeleton Guard", 2, ["undead", "skeleton"]),
     build("Zombie Shambler", 1, ["undead", "zombie"]),
-    build("Ancient Red Dragon", 20, ["dragon", "chromatic"]),
+    build("Ancient Red Dragon", 20, ["dragon", "chromatic"], 4),
   ];
 }
 
@@ -59,5 +60,23 @@ describe("encounter builder", () => {
       rng,
     });
     expect(enc.xpSpent).toBeLessThanOrEqual(enc.xpBudget);
+  });
+
+  it("filters out creatures too large to fit in the room", () => {
+    _replaceIndexForTest({ creatures: fakeCreatures() });
+    const rng = makeRng(33);
+    const filter = makeFilter(null, []);
+    const enc = buildEncounter({
+      threat: "moderate",
+      partyLevel: 2,
+      partySize: 4,
+      filter,
+      rng,
+      maxCreatureTiles: 1,
+    });
+    for (const c of enc.creatures) {
+      expect(c.name).not.toBe("Bugbear Thug");
+      expect(c.name).not.toBe("Ancient Red Dragon");
+    }
   });
 });

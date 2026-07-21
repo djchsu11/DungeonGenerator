@@ -26,6 +26,12 @@ export interface EncounterOptions {
   rng: Rng;
   /** If false, ignore family filter (safety net when pool is empty). */
   strictFamily?: boolean;
+  /**
+   * Maximum creature tile size that will fit in the target room, accounting
+   * for a 1-tile wall buffer. When provided, creatures larger than this are
+   * filtered out (or all, if the pool would be empty).
+   */
+  maxCreatureTiles?: number;
 }
 
 function candidatesInLevelRange(
@@ -34,6 +40,7 @@ function candidatesInLevelRange(
   maxDiff: number,
   filter: FamilyFilter,
   strictFamily: boolean,
+  maxCreatureTiles: number | undefined,
 ): IndexEntry[] {
   const all = getCreatures();
   return all.filter((c) => {
@@ -41,6 +48,7 @@ function candidatesInLevelRange(
     const diff = c.level - partyLevel;
     if (diff < minDiff || diff > maxDiff) return false;
     if (strictFamily && !matchesFamily(c, filter)) return false;
+    if (maxCreatureTiles !== undefined && c.sizeTiles > maxCreatureTiles) return false;
     return true;
   });
 }
@@ -48,6 +56,7 @@ function candidatesInLevelRange(
 export function buildEncounter(opts: EncounterOptions): EncounterContent {
   const { threat, partyLevel, partySize, filter, rng } = opts;
   const strictFamily = opts.strictFamily ?? true;
+  const maxTiles = opts.maxCreatureTiles;
   const budget = encounterBudget(threat, partySize);
 
   const anchorProfile = THREAT_ANCHOR_PROFILE[threat];
@@ -57,6 +66,7 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
     anchorProfile.maxDiff,
     filter,
     strictFamily,
+    maxTiles,
   );
   if (anchorPool.length === 0 && strictFamily) {
     anchorPool = candidatesInLevelRange(
@@ -65,6 +75,17 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
       anchorProfile.maxDiff,
       filter,
       false,
+      maxTiles,
+    );
+  }
+  if (anchorPool.length === 0 && maxTiles !== undefined) {
+    anchorPool = candidatesInLevelRange(
+      partyLevel,
+      anchorProfile.minDiff,
+      anchorProfile.maxDiff,
+      filter,
+      false,
+      undefined,
     );
   }
 
@@ -85,8 +106,10 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
   let safety = 20;
   while (xpSpent < budget && safety-- > 0) {
     const remaining = budget - xpSpent;
-    let minionPool = candidatesInLevelRange(partyLevel, -4, 2, filter, strictFamily);
-    if (minionPool.length === 0) minionPool = candidatesInLevelRange(partyLevel, -4, 2, filter, false);
+    let minionPool = candidatesInLevelRange(partyLevel, -4, 2, filter, strictFamily, maxTiles);
+    if (minionPool.length === 0) {
+      minionPool = candidatesInLevelRange(partyLevel, -4, 2, filter, false, maxTiles);
+    }
     const affordable = minionPool
       .map((c) => ({ c, xp: creatureXp(c.level, partyLevel), weight: familyWeight(c, filter) }))
       .filter((c) => c.xp !== null && c.xp <= remaining) as Array<{ c: IndexEntry; xp: number; weight: number }>;

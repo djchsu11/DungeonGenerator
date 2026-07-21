@@ -15,6 +15,8 @@ export interface IndexEntry {
   source?: string;
   /** Creature/hazard/item type — free-form. */
   kind: string;
+  /** Occupied tiles per side on a square grid (1 for medium/small/tiny). */
+  sizeTiles: number;
 }
 
 interface Indexes {
@@ -48,12 +50,38 @@ async function loadPackIndex(packName: string): Promise<any[]> {
   const pack = g.packs?.get(packName);
   if (!pack) return [];
   try {
-    const idx = await pack.getIndex({ fields: ["system.details", "system.traits", "system.level", "system.category"] });
+    const idx = await pack.getIndex({
+      fields: ["system.details", "system.traits", "system.level", "system.category"],
+    });
     return Array.from(idx.values());
   } catch (e) {
     console.warn(`[dungeongen] Failed to index pack ${packName}`, e);
     return [];
   }
+}
+
+const SIZE_TO_TILES: Record<string, number> = {
+  tiny: 1,
+  sm: 1,
+  small: 1,
+  med: 1,
+  medium: 1,
+  lg: 2,
+  large: 2,
+  huge: 3,
+  grg: 4,
+  gargantuan: 4,
+};
+
+function sizeTilesFor(raw: any, traits: string[]): number {
+  const explicit = raw?.system?.traits?.size?.value;
+  if (explicit && SIZE_TO_TILES[String(explicit).toLowerCase()]) {
+    return SIZE_TO_TILES[String(explicit).toLowerCase()]!;
+  }
+  for (const key of Object.keys(SIZE_TO_TILES)) {
+    if (traits.includes(key)) return SIZE_TO_TILES[key]!;
+  }
+  return 1;
 }
 
 function normalizeEntry(raw: any, packName: string): IndexEntry | null {
@@ -69,14 +97,16 @@ function normalizeEntry(raw: any, packName: string): IndexEntry | null {
     ? raw.system.traits.value.map((t: string) => String(t).toLowerCase())
     : [];
   const rarity = (raw.system?.traits?.rarity ?? "common") as IndexEntry["rarity"];
+  const finalTraits = traitList.length ? traitList : traits;
   return {
     uuid: raw.uuid ?? `Compendium.${packName}.${raw._id}`,
     name: raw.name,
     level: Number(level) || 0,
-    traits: traitList.length ? traitList : traits,
+    traits: finalTraits,
     rarity,
     source: packName,
     kind: raw.type ?? "",
+    sizeTiles: sizeTilesFor(raw, finalTraits),
   };
 }
 
