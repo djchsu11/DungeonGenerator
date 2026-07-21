@@ -13,50 +13,37 @@ const MARGIN = 1;
 
 interface RoomSizeInput {
   partySize: number;
+  requiredSize?: (node: DungeonNode) => { minSide: number } | undefined;
 }
 
 /**
- * Room dimensions in tiles. Combat rooms scale up with threat and party size
- * so there's actual tactical maneuvering space around the creatures — a
- * "just fits" room becomes a stand-and-swing brawl in play.
+ * Room dimensions in tiles. Combat rooms are sized to fit their actual
+ * encounter (via `opts.requiredSize`) so there's real tactical maneuvering
+ * space around the creatures. Non-combat rooms stay compact.
  */
 function roomSizeFor(node: DungeonNode, rng: Rng, opts: RoomSizeInput): { w: number; h: number } {
-  const partyBonus = Math.max(0, opts.partySize - 4); // extra tiles per direction
+  const partyBonus = Math.max(0, opts.partySize - 4);
+
+  // If the orchestrator pre-computed a required size (based on the actual
+  // encounter footprint), honor it: use that as the floor and add a small
+  // randomization so rooms don't all look identical.
+  const required = opts.requiredSize?.(node);
+  if (required) {
+    const jitter = () => rng.int(0, 3);
+    const w = required.minSide + jitter() + partyBonus;
+    const h = required.minSide + jitter() + partyBonus;
+    return { w, h };
+  }
 
   if (node.isEntrance) {
     return { w: rng.int(5, 7) + partyBonus, h: rng.int(5, 7) + partyBonus };
   }
-
-  // Boss climax: needs a real arena — room for large/huge boss + minions + party.
   if (node.isBoss) {
-    const threat = node.threat ?? "severe";
-    const base = threat === "extreme" ? 14 : 12;
-    return {
-      w: rng.int(base, base + 4) + partyBonus,
-      h: rng.int(base, base + 4) + partyBonus,
-    };
+    return { w: rng.int(12, 16) + partyBonus, h: rng.int(12, 16) + partyBonus };
   }
-
   if (node.isMiniBoss) {
     return { w: rng.int(10, 13) + partyBonus, h: rng.int(10, 13) + partyBonus };
   }
-
-  // Combat rooms scale by threat so a severe encounter isn't crammed into
-  // a 5x5 broom closet.
-  if (node.roomType === "combat") {
-    const threat = node.threat ?? "moderate";
-    const rangeByThreat: Record<string, [number, number]> = {
-      trivial: [6, 8],
-      low: [7, 9],
-      moderate: [8, 11],
-      severe: [10, 13],
-      extreme: [12, 15],
-    };
-    const [min, max] = rangeByThreat[threat] ?? [8, 11];
-    return { w: rng.int(min, max) + partyBonus, h: rng.int(min, max) + partyBonus };
-  }
-
-  // Non-combat rooms stay compact.
   if (node.isDeadEnd) return { w: rng.int(4, 7), h: rng.int(4, 7) };
   if (node.roomType === "puzzle") return { w: rng.int(6, 9), h: rng.int(6, 9) };
   if (node.roomType === "hazard") return { w: rng.int(6, 9), h: rng.int(6, 9) };
@@ -135,7 +122,11 @@ export interface EmbeddedDungeon {
 }
 
 /** Assigns rects to each node in-place and returns corridor segments + bounds. */
-export function embedGraph(graph: DungeonGraph, rng: Rng, opts: { partySize: number }): EmbeddedDungeon {
+export function embedGraph(
+  graph: DungeonGraph,
+  rng: Rng,
+  opts: { partySize: number; requiredSize?: (node: DungeonNode) => { minSide: number } | undefined },
+): EmbeddedDungeon {
   const placed: Rect[] = [];
   const corridors: CorridorSegment[] = [];
 
@@ -157,8 +148,13 @@ export function embedGraph(graph: DungeonGraph, rng: Rng, opts: { partySize: num
     const size = roomSizeFor(node, rng, opts);
     let placement = tryPlaceAdjacent(parent.rect, size, placed, rng);
     if (!placement) {
-      const size2 = { w: Math.max(3, size.w - 2), h: Math.max(3, size.h - 2) };
-      placement = tryPlaceAdjacent(parent.rect, size2, placed, rng);
+      // Only allow shrinking for rooms that don't have a mandatory required
+      // size — combat rooms must stay large enough for the encounter.
+      const hasRequired = !!opts.requiredSize?.(node);
+      if (!hasRequired) {
+        const size2 = { w: Math.max(3, size.w - 2), h: Math.max(3, size.h - 2) };
+        placement = tryPlaceAdjacent(parent.rect, size2, placed, rng);
+      }
     }
     if (!placement) {
       const anchorNodes = order.slice(0, i).map((id) => graph.nodes.get(id)!).filter((n) => n.rect);

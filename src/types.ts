@@ -74,6 +74,7 @@ export interface EncounterCreatureSlot {
   name: string;
   level: number;
   xp: number; // cost against party
+  sizeTiles: number; // 1 medium/small, 2 large, 3 huge, 4 gargantuan
 }
 
 export interface EncounterContent {

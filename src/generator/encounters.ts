@@ -117,7 +117,7 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
       }>;
     if (usable.length > 0) {
       const anchor = rng.weighted(usable.map((u) => ({ value: u, weight: u.weight })));
-      creatures.push({ uuid: anchor.c.uuid, name: anchor.c.name, level: anchor.c.level, xp: anchor.xp });
+      creatures.push({ uuid: anchor.c.uuid, name: anchor.c.name, level: anchor.c.level, xp: anchor.xp, sizeTiles: anchor.c.sizeTiles });
       xpSpent += anchor.xp;
       footprintUsed += anchor.c.sizeTiles * anchor.c.sizeTiles;
     }
@@ -137,7 +137,7 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
       ) as Array<{ c: IndexEntry; xp: number; weight: number }>;
     if (affordable.length === 0) break;
     const pick = rng.weighted(affordable.map((a) => ({ value: a, weight: a.weight })));
-    creatures.push({ uuid: pick.c.uuid, name: pick.c.name, level: pick.c.level, xp: pick.xp });
+    creatures.push({ uuid: pick.c.uuid, name: pick.c.name, level: pick.c.level, xp: pick.xp, sizeTiles: pick.c.sizeTiles });
     xpSpent += pick.xp;
     footprintUsed += pick.c.sizeTiles * pick.c.sizeTiles;
     if (creatures.length >= 10) break;
