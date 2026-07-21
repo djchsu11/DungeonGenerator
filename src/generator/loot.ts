@@ -19,6 +19,49 @@ const GENEROSITY_MULT: Record<LootGenerosity, number> = {
   generous: 1.5,
 };
 
+/**
+ * Split `total` gp across `pileCount` piles using random weights so no two
+ * piles end up equal. Each pile is guaranteed at least `minPerPile` (if the
+ * budget allows), and results are rounded to whole gp with the remainder
+ * absorbed by random piles so the total is exact.
+ */
+function jitterSplit(total: number, pileCount: number, rng: Rng, minPerPile = 0): number[] {
+  if (pileCount <= 0) return [];
+  if (pileCount === 1) return [total];
+  if (total <= 0) return new Array(pileCount).fill(0);
+
+  const guaranteed = Math.min(minPerPile * pileCount, total);
+  const remainder = total - guaranteed;
+
+  const weights: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < pileCount; i++) {
+    // Weights in [0.4, 1.6] give a healthy spread without any pile going to zero.
+    const w = 0.4 + rng.next() * 1.2;
+    weights.push(w);
+    sum += w;
+  }
+
+  const piles = weights.map((w) => Math.floor((w / sum) * remainder) + minPerPile);
+  let distributed = piles.reduce((s, v) => s + v, 0);
+  let leftover = total - distributed;
+
+  // Sprinkle leftover +/- 1gp coins one at a time into random piles until exact.
+  while (leftover > 0) {
+    piles[rng.int(0, pileCount - 1)]! += 1;
+    leftover--;
+  }
+  while (leftover < 0) {
+    const idx = rng.int(0, pileCount - 1);
+    if (piles[idx]! > 0) {
+      piles[idx]! -= 1;
+      leftover++;
+    }
+  }
+
+  return piles;
+}
+
 interface LootBudget {
   low: number; // party level -5 (min 0). Bulk.
   mid: number; // party level -2..-3. 1-2 items.
@@ -44,7 +87,9 @@ function budgetFor(
   else bossAt = rng.chance(0.6) ? 1 : 0;
   const consumables = Math.round(3 * encScale * gen + 1);
   const gpCurve = Math.max(1, partyLevel) ** 1.8;
-  const gp = Math.round(gpCurve * 6 * gen * encScale);
+  // Add per-dungeon jitter (±25%) so total gp isn't the same for every dungeon.
+  const jitter = 0.75 + rng.next() * 0.5;
+  const gp = Math.round(gpCurve * 6 * gen * encScale * jitter);
   return { low: lowCount, mid: midCount, bossAtLevel: bossAt, consumables, gp };
 }
 
@@ -167,18 +212,21 @@ export function allocateLoot(
   for (let i = 0; i < vaultCount; i++) vaultHoards.push({ items: [], gp: 0, fromDefeated: false });
   vaultItems.forEach((it, i) => vaultHoards[i % vaultCount]!.items.push(it));
   vaultCons.forEach((it, i) => vaultHoards[i % vaultCount]!.items.push(it));
-  const gpPerVault = Math.floor(gpForVaults / vaultCount);
-  vaultHoards.forEach((h) => (h.gp = gpPerVault));
-  vaultHoards[0]!.gp += gpForVaults - gpPerVault * vaultCount;
+  const vaultGpSplit = jitterSplit(gpForVaults, vaultCount, rng, 1);
+  vaultHoards.forEach((h, i) => (h.gp = vaultGpSplit[i] ?? 0));
 
   const combatDropCount = Math.max(1, numCombatRooms);
   const combatDrops: LootContent[] = [];
   for (let i = 0; i < combatDropCount; i++) combatDrops.push({ items: [], gp: 0, fromDefeated: true });
   combatPerm.forEach((it, i) => combatDrops[i % combatDropCount]!.items.push(it));
   combatCons.forEach((it, i) => combatDrops[i % combatDropCount]!.items.push(it));
-  const gpPerCombat = Math.floor(gpForCombat / combatDropCount);
-  combatDrops.forEach((d) => (d.gp = gpPerCombat));
-  combatDrops[0]!.gp += gpForCombat - gpPerCombat * combatDropCount;
+  // Only ~60% of combats actually drop coin; the rest drop 0 (bandits carry
+  // gold, oozes don't). This creates natural variance and avoids the
+  // "every kill drops N gp" feel.
+  const combatDroppers = Math.max(1, Math.round(combatDropCount * 0.6));
+  const combatGpSplit = jitterSplit(gpForCombat, combatDroppers, rng, 0);
+  const combatIndices = rng.shuffle([...Array(combatDropCount).keys()]).slice(0, combatDroppers);
+  combatIndices.forEach((idx, i) => (combatDrops[idx]!.gp = combatGpSplit[i] ?? 0));
 
   const bossHoard: LootContent = {
     items: [...bossOnly, ...bossCons],
