@@ -157,6 +157,8 @@ async function makeLootActor(room: RoomContent): Promise<any | null> {
 
 export async function placeTokens(plan: DungeonPlan, scene: any): Promise<void> {
   const tokens: any[] = [];
+  let importedCount = 0;
+  let placementErrors = 0;
 
   for (const room of plan.rooms) {
     if (!room.node.rect) continue;
@@ -172,63 +174,93 @@ export async function placeTokens(plan: DungeonPlan, scene: any): Promise<void> 
         if (!actor) continue;
         actors.push(actor);
         sizes.push(tileSizeForActor(actor));
+        importedCount++;
       }
       const positions = packTokens(r.x, r.y, r.w, r.h, sizes);
       for (let i = 0; i < actors.length; i++) {
-        const size = sizes[i]!;
-        const [px, py] = positions[i]!;
-        const tokenSrc = await actors[i].getTokenDocument({
-          x: px,
-          y: py,
-          width: size,
-          height: size,
-          hidden: false,
-          disposition: -1,
-          flags: { [MODULE_ID]: { roomId: room.node.id } },
-        });
-        tokens.push(tokenSrc.toObject());
+        try {
+          const size = sizes[i]!;
+          const [px, py] = positions[i]!;
+          const tokenObj = actors[i].prototypeToken.toObject();
+          tokenObj.actorId = actors[i].id;
+          tokenObj.x = px;
+          tokenObj.y = py;
+          tokenObj.width = size;
+          tokenObj.height = size;
+          tokenObj.hidden = false;
+          tokenObj.disposition = -1;
+          tokenObj.elevation = 0;
+          tokenObj.name = actors[i].name ?? tokenObj.name;
+          tokenObj.flags = { ...(tokenObj.flags ?? {}), [MODULE_ID]: { roomId: room.node.id } };
+          tokens.push(tokenObj);
+        } catch (e) {
+          placementErrors++;
+          console.error(`[${MODULE_ID}] Failed to build encounter token for ${actors[i]?.name}`, e);
+        }
       }
     }
 
     if (room.loot && (room.loot.items.length > 0 || room.loot.gp > 0)) {
-      const lootActor = await makeLootActor(room);
-      if (lootActor) {
-        const lx = Math.min(r.x + r.w - 2, r.x + r.w - 1) * GRID_PX;
-        const ly = Math.min(r.y + r.h - 2, r.y + r.h - 1) * GRID_PX;
-        const tokenSrc = await lootActor.getTokenDocument({
-          x: lx,
-          y: ly,
-          width: 1,
-          height: 1,
-          hidden: room.loot.fromDefeated,
-          disposition: 0,
-          flags: { [MODULE_ID]: { roomId: room.node.id } },
-        });
-        tokens.push(tokenSrc.toObject());
+      try {
+        const lootActor = await makeLootActor(room);
+        if (lootActor) {
+          const lx = Math.max(r.x + 1, r.x + r.w - 2) * GRID_PX;
+          const ly = Math.max(r.y + 1, r.y + r.h - 2) * GRID_PX;
+          const tokenObj = lootActor.prototypeToken.toObject();
+          tokenObj.actorId = lootActor.id;
+          tokenObj.x = lx;
+          tokenObj.y = ly;
+          tokenObj.width = 1;
+          tokenObj.height = 1;
+          tokenObj.hidden = room.loot.fromDefeated;
+          tokenObj.disposition = 0;
+          tokenObj.elevation = 0;
+          tokenObj.name = lootActor.name;
+          tokenObj.flags = { ...(tokenObj.flags ?? {}), [MODULE_ID]: { roomId: room.node.id } };
+          tokens.push(tokenObj);
+        }
+      } catch (e) {
+        placementErrors++;
+        console.error(`[${MODULE_ID}] Failed to build loot token for room ${room.node.id}`, e);
       }
     }
 
     if (room.hazard) {
-      const hz = await importActor(room.hazard.uuid);
-      if (hz) {
-        const size = tileSizeForActor(hz);
-        const cxTile = r.x + Math.floor((r.w - size) / 2);
-        const cyTile = r.y + Math.floor((r.h - size) / 2);
-        const tokenSrc = await hz.getTokenDocument({
-          x: cxTile * GRID_PX,
-          y: cyTile * GRID_PX,
-          width: size,
-          height: size,
-          hidden: true,
-          disposition: -1,
-          flags: { [MODULE_ID]: { roomId: room.node.id } },
-        });
-        tokens.push(tokenSrc.toObject());
+      try {
+        const hz = await importActor(room.hazard.uuid);
+        if (hz) {
+          const size = tileSizeForActor(hz);
+          const cxTile = r.x + Math.floor((r.w - size) / 2);
+          const cyTile = r.y + Math.floor((r.h - size) / 2);
+          const tokenObj = hz.prototypeToken.toObject();
+          tokenObj.actorId = hz.id;
+          tokenObj.x = cxTile * GRID_PX;
+          tokenObj.y = cyTile * GRID_PX;
+          tokenObj.width = size;
+          tokenObj.height = size;
+          tokenObj.hidden = true;
+          tokenObj.disposition = -1;
+          tokenObj.elevation = 0;
+          tokenObj.name = hz.name;
+          tokenObj.flags = { ...(tokenObj.flags ?? {}), [MODULE_ID]: { roomId: room.node.id } };
+          tokens.push(tokenObj);
+        }
+      } catch (e) {
+        placementErrors++;
+        console.error(`[${MODULE_ID}] Failed to build hazard token for room ${room.node.id}`, e);
       }
     }
   }
 
+  console.info(
+    `[${MODULE_ID}] placeTokens: imported ${importedCount} actors, prepared ${tokens.length} tokens, ${placementErrors} errors.`,
+  );
   if (tokens.length > 0) {
-    await scene.createEmbeddedDocuments("Token", tokens);
+    try {
+      const created = await scene.createEmbeddedDocuments("Token", tokens);
+      console.info(`[${MODULE_ID}] Created ${created?.length ?? 0} tokens on scene ${scene?.id}.`);
+    } catch (e) {
+      console.error(`[${MODULE_ID}] scene.createEmbeddedDocuments('Token', ...) failed`, e, tokens);
+    }
   }
 }

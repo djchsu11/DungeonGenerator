@@ -88,7 +88,7 @@ export async function buildScene(
     background: { src: "" },
     levels: [levelDoc],
     grid: { type: 1, size: gridPx, distance: 5, units: "ft" },
-    padding: 0.1,
+    padding: 0,
     initial: null,
     tokenVision: true,
     fog: { exploration: false, reset: 0 },

@@ -31,7 +31,14 @@ export async function generate(input: GenerationInput): Promise<GenerateResult> 
     await scene.update({ folder: folders.sceneFolder.id });
   }
 
-  await placeTokens(plan, scene);
+  try {
+    await placeTokens(plan, scene);
+  } catch (e) {
+    console.error("[dungeongen] placeTokens failed:", e);
+    ui.notifications?.warn(
+      "Dungeon Generator: some tokens could not be placed. See console for details.",
+    );
+  }
 
   const journal = await buildJournal(plan, folders.journalFolder);
 
