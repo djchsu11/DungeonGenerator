@@ -69,14 +69,24 @@ export async function buildScene(
   const walls = buildWallsAndDoors(plan.graph, embed, gridPx);
   const lights = buildLights(plan.graph, embed, archetype, plan.input.lighting, gridPx);
 
+  // v14: the visible background lives on a Level, not the scene root.
+  // We create one ground-floor level and hang the background off it.
+  // Set scene root background to empty string for compat with older readers.
+  const levelDoc: any = {
+    name: "Ground",
+    sort: 0,
+    elevation: { bottom: 0, top: 10 },
+    background: { src: bgPath },
+  };
+
   const sceneData: any = {
     name: plan.name,
     active: false,
     navigation: true,
     width: widthPx,
     height: heightPx,
-    background: { src: bgPath },
-    img: bgPath,
+    background: { src: "" },
+    levels: [levelDoc],
     grid: { type: 1, size: gridPx, distance: 5, units: "ft" },
     padding: 0.1,
     initial: null,
@@ -84,6 +94,7 @@ export async function buildScene(
     fog: { exploration: false, reset: 0 },
     darkness: darknessForLighting(plan.input.lighting),
     globalLight: plan.input.lighting === "well-lit",
+    backgroundColor: "#0b0b0f",
     walls,
     lights,
     flags: {
@@ -96,16 +107,23 @@ export async function buildScene(
   };
 
   const scene = await Scene.create(sceneData);
-  console.info(`[${MODULE_ID}] Scene ${scene?.id} created. background=`, scene?.background, "img=", (scene as any)?.img);
+  const srcLevels: any[] = scene?._source?.levels ?? [];
+  const levelSrc = srcLevels[0]?.background?.src ?? null;
+  console.info(
+    `[${MODULE_ID}] Scene ${scene?.id} created. levels=${srcLevels.length} level[0].background.src=${levelSrc}`,
+  );
 
-  const currentBg = scene?.background?.src ?? (scene as any)?.img;
-  if (!currentBg || currentBg !== bgPath) {
-    console.warn(`[${MODULE_ID}] Scene background not set as expected, updating explicitly.`);
-    await scene.update({
-      background: { src: bgPath, tint: null },
-      thumb: null,
-    });
-    console.info(`[${MODULE_ID}] After update, scene.background=`, scene?.background);
+  if (!levelSrc || levelSrc !== bgPath) {
+    console.warn(`[${MODULE_ID}] Level background not set as expected, updating explicitly.`);
+    const clonedLevels = srcLevels.length > 0
+      ? JSON.parse(JSON.stringify(srcLevels))
+      : [{ name: "Ground", sort: 0, elevation: { bottom: 0, top: 10 }, background: {} }];
+    clonedLevels[0].background = { ...(clonedLevels[0].background ?? {}), src: bgPath };
+    await scene.update({ levels: clonedLevels, "background.src": bgPath, thumb: null });
+    const afterLevels: any[] = scene?._source?.levels ?? [];
+    console.info(
+      `[${MODULE_ID}] After update, level[0].background.src=${afterLevels[0]?.background?.src}`,
+    );
   }
 
   return { scene, gridPx };
