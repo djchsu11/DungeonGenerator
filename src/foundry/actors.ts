@@ -145,18 +145,44 @@ function markUnidentified(obj: any): void {
 
 /**
  * Neutralize an item so it sits inertly in the loot pile: nothing worn,
- * nothing held, nothing invested. Without this, PF2e will happily "apply"
- * a +1 rune, invested runestone, or bracers-of-armor rule element to the
- * chest actor, causing the chest to gain the item's benefits instead of
- * simply containing the item.
+ * nothing held, nothing invested, no active effects on the container.
+ * Without this, PF2e will happily "apply" a +1 rune, invested runestone,
+ * or bracers-of-armor rule element to the chest actor, causing the chest
+ * to gain the item's benefits instead of simply containing the item.
  */
 function makeInertLoot(obj: any): void {
-  if (!obj?.system) return;
+  if (!obj) return;
+  obj.system = obj.system ?? {};
   obj.system.equipped = obj.system.equipped ?? {};
   obj.system.equipped.carryType = "stowed";
   obj.system.equipped.handsHeld = 0;
   obj.system.equipped.invested = false;
   obj.system.equipped.inSlot = false;
+
+  // Strip embedded ActiveEffects — Foundry auto-creates matching effects on
+  // the parent actor when an item with effects is added, which is exactly
+  // how the chest ends up gaining the item's status.
+  obj.effects = [];
+
+  // Some PF2e items (talismans, some consumables, granted-effect gear) ship
+  // system-side flags that mark them as auto-applying. Clear the persistent
+  // ones so the item stays a plain container payload.
+  obj.flags = obj.flags ?? {};
+  obj.flags.pf2e = obj.flags.pf2e = { ...(obj.flags.pf2e ?? {}) };
+  delete obj.flags.pf2e.grantedBy;
+  delete obj.flags.pf2e.itemGrants;
+  delete obj.flags.pf2e.rulesSelections;
+
+  // Weapon-specific: drop equipped/held state, unset any wielder-derived
+  // properties like backstabber toggles.
+  if (obj.type === "weapon" && obj.system) {
+    obj.system.equipped.handsHeld = 0;
+  }
+  // Armor-specific: mark as unequipped (an equipped item auto-provides its
+  // AC/traits to the actor).
+  if (obj.type === "armor" && obj.system) {
+    obj.system.equipped.inSlot = false;
+  }
 }
 
 async function makeLootActor(room: RoomContent): Promise<any | null> {
