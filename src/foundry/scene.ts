@@ -17,15 +17,20 @@ async function uploadBackground(sceneName: string, blob: Blob): Promise<string> 
   const g: any = game;
   const worldName: string = g.world?.id ?? "world";
   const dir = `worlds/${worldName}/${MODULE_ID}`;
+  const FP: any =
+    (foundry as any)?.applications?.apps?.FilePicker?.implementation ??
+    (globalThis as any).FilePicker;
   try {
-    await FilePicker.createDirectory("data", dir, {}).catch(() => undefined);
+    await FP.createDirectory("data", dir, {}).catch(() => undefined);
   } catch {
     /* directory may already exist */
   }
   const safeName = sceneName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const file = new File([blob], `${safeName}-${Date.now()}.png`, { type: "image/png" });
-  const result = await FilePicker.upload("data", dir, file, {}, { notify: false });
-  return typeof result === "object" && result?.path ? result.path : `${dir}/${file.name}`;
+  const result = await FP.upload("data", dir, file, {}, { notify: false });
+  const path = typeof result === "object" && result?.path ? result.path : `${dir}/${file.name}`;
+  console.info(`[${MODULE_ID}] Uploaded background to ${path}`);
+  return path;
 }
 
 function darknessForLighting(l: Lighting): number {
@@ -58,7 +63,7 @@ export async function buildScene(
     padding: 0.1,
     initial: null,
     tokenVision: true,
-    fog: { exploration: true, reset: 0 },
+    fog: { exploration: false, reset: 0 },
     darkness: darknessForLighting(plan.input.lighting),
     globalLight: plan.input.lighting === "well-lit",
     walls,

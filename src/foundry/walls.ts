@@ -54,7 +54,7 @@ function openingsOnSide(
   for (const c of corridors) {
     if (c.from !== roomId && c.to !== roomId) continue;
     const facingRoom = c.from === roomId ? { x: c.ax, y: c.ay } : { x: c.bx, y: c.by };
-    const width = 2;
+    const width = 3;
     if (side === "right" && facingRoom.x === r.x + r.w) {
       const s = Math.max(r.y, facingRoom.y - width / 2);
       const e = Math.min(r.y + r.h, facingRoom.y + width / 2);
@@ -115,7 +115,7 @@ function segmentSide(
 }
 
 function corridorWalls(c: CorridorSegment, gridPx: number): Wall[] {
-  const half = 1;
+  const half = 1.5;
   const walls: Wall[] = [];
   if (c.ay === c.by) {
     const minX = Math.min(c.ax, c.bx);
@@ -129,15 +129,14 @@ function corridorWalls(c: CorridorSegment, gridPx: number): Wall[] {
     walls.push(wall((c.ax + half) * gridPx, minY * gridPx, (c.ax + half) * gridPx, maxY * gridPx));
   } else {
     const midX = c.bx;
-    const midY = c.ay;
     const minX = Math.min(c.ax, midX);
     const maxX = Math.max(c.ax, midX);
-    walls.push(wall(minX * gridPx, (c.ay - half) * gridPx, maxX * gridPx, (c.ay - half) * gridPx));
-    walls.push(wall(minX * gridPx, (c.ay + half) * gridPx, maxX * gridPx, (c.ay + half) * gridPx));
-    const minY = Math.min(midY, c.by);
-    const maxY = Math.max(midY, c.by);
-    walls.push(wall((midX - half) * gridPx, minY * gridPx, (midX - half) * gridPx, maxY * gridPx));
-    walls.push(wall((midX + half) * gridPx, minY * gridPx, (midX + half) * gridPx, maxY * gridPx));
+    walls.push(wall(minX * gridPx, (c.ay - half) * gridPx, (maxX + half) * gridPx, (c.ay - half) * gridPx));
+    walls.push(wall(minX * gridPx, (c.ay + half) * gridPx, (maxX - half) * gridPx, (c.ay + half) * gridPx));
+    const minY = Math.min(c.ay, c.by);
+    const maxY = Math.max(c.ay, c.by);
+    walls.push(wall((midX - half) * gridPx, (minY - half) * gridPx, (midX - half) * gridPx, maxY * gridPx));
+    walls.push(wall((midX + half) * gridPx, (minY + half) * gridPx, (midX + half) * gridPx, maxY * gridPx));
   }
   return walls;
 }

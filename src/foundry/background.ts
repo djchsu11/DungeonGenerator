@@ -78,13 +78,21 @@ export async function renderBackground(
     if (!node.rect) continue;
     ctx.rect(node.rect.x * GRID_PX, node.rect.y * GRID_PX, node.rect.w * GRID_PX, node.rect.h * GRID_PX);
   }
-  for (const c of embed.corridors) {
-    const CORRIDOR_HALF = 1;
-    const minX = Math.min(c.ax, c.bx) - CORRIDOR_HALF;
-    const minY = Math.min(c.ay, c.by) - CORRIDOR_HALF;
-    const maxX = Math.max(c.ax, c.bx) + CORRIDOR_HALF;
-    const maxY = Math.max(c.ay, c.by) + CORRIDOR_HALF;
+  const HALF = 1.5;
+  const addSegment = (x1: number, y1: number, x2: number, y2: number) => {
+    const minX = Math.min(x1, x2) - HALF;
+    const minY = Math.min(y1, y2) - HALF;
+    const maxX = Math.max(x1, x2) + HALF;
+    const maxY = Math.max(y1, y2) + HALF;
     ctx.rect(minX * GRID_PX, minY * GRID_PX, (maxX - minX) * GRID_PX, (maxY - minY) * GRID_PX);
+  };
+  for (const c of embed.corridors) {
+    if (c.ay === c.by || c.ax === c.bx) {
+      addSegment(c.ax, c.ay, c.bx, c.by);
+    } else {
+      addSegment(c.ax, c.ay, c.bx, c.ay);
+      addSegment(c.bx, c.ay, c.bx, c.by);
+    }
   }
   ctx.clip();
   ctx.fillStyle = pattern as any;
