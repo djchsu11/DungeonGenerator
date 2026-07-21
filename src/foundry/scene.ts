@@ -59,6 +59,7 @@ export async function buildScene(
     width: widthPx,
     height: heightPx,
     background: { src: bgPath },
+    img: bgPath,
     grid: { type: 1, size: gridPx, distance: 5, units: "ft" },
     padding: 0.1,
     initial: null,
@@ -78,5 +79,18 @@ export async function buildScene(
   };
 
   const scene = await Scene.create(sceneData);
+  console.info(`[${MODULE_ID}] Scene ${scene?.id} created. background=`, scene?.background, "img=", (scene as any)?.img);
+
+  const currentBg = scene?.background?.src ?? (scene as any)?.img;
+  if (!currentBg || currentBg !== bgPath) {
+    console.warn(`[${MODULE_ID}] Scene background not set as expected, updating explicitly.`);
+    await scene.update({
+      background: { src: bgPath, offsetX: 0, offsetY: 0, tint: null },
+      img: bgPath,
+      thumb: null,
+    });
+    console.info(`[${MODULE_ID}] After update, scene.background=`, scene?.background);
+  }
+
   return { scene, gridPx };
 }
