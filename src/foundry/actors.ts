@@ -185,6 +185,17 @@ function makeInertLoot(obj: any): void {
   }
 }
 
+const PHYSICAL_ITEM_TYPES = new Set([
+  "weapon",
+  "armor",
+  "shield",
+  "consumable",
+  "equipment",
+  "treasure",
+  "backpack",
+  "book",
+]);
+
 async function makeLootActor(room: RoomContent): Promise<any | null> {
   if (!room.loot || (room.loot.items.length === 0 && room.loot.gp === 0)) return null;
   const items: any[] = [];
@@ -193,6 +204,15 @@ async function makeLootActor(room: RoomContent): Promise<any | null> {
       const src = await fromUuid(it.uuid);
       if (src) {
         const obj = src.toObject();
+        // Final gate: skip anything that isn't a real physical item, so an
+        // effect/feat/etc. can never be inserted into a chest.
+        const kind = String(obj?.type ?? "").toLowerCase();
+        if (!PHYSICAL_ITEM_TYPES.has(kind)) {
+          console.warn(
+            `[${MODULE_ID}] Refusing to add non-physical item to loot actor: name="${obj?.name}" type="${kind}" uuid=${it.uuid}`,
+          );
+          continue;
+        }
         makeInertLoot(obj);
         if (isMagicItem(obj)) markUnidentified(obj);
         items.push(obj);

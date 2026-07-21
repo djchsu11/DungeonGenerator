@@ -75,6 +75,27 @@ const SIZE_TO_TILES: Record<string, number> = {
   gargantuan: 4,
 };
 
+/**
+ * PF2e item types that represent real, ownable, physical objects a chest
+ * could plausibly contain. Anything outside this set (notably `effect`,
+ * `condition`, `action`, `feat`, `spell`, `ancestry`, `heritage`, `class`,
+ * `background`, `deity`, `kit`, `lore`, `melee`, `spellcastingEntry`,
+ * `campaignFeature`) must be excluded from the loot pool — pushing an
+ * `effect` item into a loot actor is what causes chests to gain the
+ * effect while containing no visible item.
+ */
+const PHYSICAL_ITEM_TYPES = new Set([
+  "weapon",
+  "armor",
+  "shield",
+  "consumable",
+  "equipment",
+  "treasure",
+  "backpack",
+  "book",
+]);
+
+
 function sizeTilesFor(raw: any, traits: string[]): number {
   const explicit = raw?.system?.traits?.size?.value;
   if (explicit && SIZE_TO_TILES[String(explicit).toLowerCase()]) {
@@ -129,10 +150,7 @@ async function buildIndex(): Promise<void> {
     if (docType === "Actor") {
       creaturePacks.push(pack);
       hazardPacks.push(pack);
-    } else if (
-      docType === "Item" &&
-      (id.includes("equipment") || id.includes("treasure") || id.includes("consumable"))
-    ) {
+    } else if (docType === "Item") {
       itemPacks.push(pack);
     }
   }
@@ -171,6 +189,7 @@ async function buildIndex(): Promise<void> {
   for (const pack of itemPacks) {
     const raw = await loadPackIndex(pack.metadata.id);
     for (const r of raw) {
+      if (!PHYSICAL_ITEM_TYPES.has(String(r?.type ?? "").toLowerCase())) continue;
       const e = normalizeEntry(r, pack.metadata.id);
       if (e) items.push(e);
     }

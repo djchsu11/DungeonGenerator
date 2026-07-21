@@ -104,6 +104,17 @@ function isConsumableTrait(e: IndexEntry): boolean {
   );
 }
 
+const PHYSICAL_KINDS = new Set([
+  "weapon",
+  "armor",
+  "shield",
+  "consumable",
+  "equipment",
+  "treasure",
+  "backpack",
+  "book",
+]);
+
 function pickItem(
   category: "permanent" | "consumable",
   minLevel: number,
@@ -114,6 +125,9 @@ function pickItem(
   const clampedMax = Math.max(clampedMin, maxLevel);
   const all = getItems();
   const pool = all.filter((it) => {
+    // Defense-in-depth: never let an effect/feat/action/spell slip into a
+    // chest, even if the adapter's pack routing changes upstream.
+    if (!PHYSICAL_KINDS.has(String(it.kind).toLowerCase())) return false;
     if (it.level < clampedMin || it.level > clampedMax) return false;
     if (it.rarity === "unique") return false;
     if (it.rarity === "rare" && rng.chance(0.9)) return false;
