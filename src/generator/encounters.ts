@@ -51,6 +51,11 @@ function candidatesInLevelRange(
 ): IndexEntry[] {
   const all = getCreatures();
   return all.filter((c) => {
+    // Safety: refuse anything that isn't an actor-type creature. Hazards
+    // must never be picked as encounter monsters — they'd render as always-
+    // visible hostile tokens instead of hidden hazards.
+    const kind = String(c.kind).toLowerCase();
+    if (kind && kind !== "npc" && kind !== "character") return false;
     if (c.rarity === "unique") return false;
     const diff = c.level - partyLevel;
     if (diff < minDiff || diff > maxDiff) return false;

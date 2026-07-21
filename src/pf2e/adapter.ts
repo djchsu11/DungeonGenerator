@@ -120,31 +120,52 @@ async function buildIndex(): Promise<void> {
   const hazardPacks: any[] = [];
   const itemPacks: any[] = [];
 
+  // Include any Actor-type pack; we'll route each individual entry by its
+  // actor type (npc/character vs hazard) rather than trusting pack names.
   for (const pack of g.packs.values()) {
     const docType = pack.metadata?.type ?? pack.documentName;
     const id: string = pack.metadata?.id ?? pack.collection ?? "";
     if (!id.startsWith("pf2e.")) continue;
-    if (docType === "Actor" && (id.includes("bestiary") || id.includes("npc"))) creaturePacks.push(pack);
-    else if (docType === "Actor" && id.includes("hazard")) hazardPacks.push(pack);
-    else if (docType === "Item" && (id.includes("equipment") || id.includes("treasure") || id.includes("consumable"))) itemPacks.push(pack);
+    if (docType === "Actor") {
+      creaturePacks.push(pack);
+      hazardPacks.push(pack);
+    } else if (
+      docType === "Item" &&
+      (id.includes("equipment") || id.includes("treasure") || id.includes("consumable"))
+    ) {
+      itemPacks.push(pack);
+    }
   }
 
   const creatures: IndexEntry[] = [];
   const hazards: IndexEntry[] = [];
   const items: IndexEntry[] = [];
+  const seen = new Set<string>();
 
   for (const pack of creaturePacks) {
     const raw = await loadPackIndex(pack.metadata.id);
     for (const r of raw) {
+      // Route by actor type. Only creatures (npc/character) go into the
+      // encounter pool; hazards are handled separately and must NEVER be
+      // pickable as encounter monsters (they'd render as always-visible
+      // hostile tokens instead of hidden hazards).
+      const kind = String(r?.type ?? "").toLowerCase();
+      if (kind !== "npc" && kind !== "character") continue;
       const e = normalizeEntry(r, pack.metadata.id);
-      if (e) creatures.push(e);
+      if (!e || seen.has(e.uuid)) continue;
+      seen.add(e.uuid);
+      creatures.push(e);
     }
   }
   for (const pack of hazardPacks) {
     const raw = await loadPackIndex(pack.metadata.id);
     for (const r of raw) {
+      const kind = String(r?.type ?? "").toLowerCase();
+      if (kind !== "hazard") continue;
       const e = normalizeEntry(r, pack.metadata.id);
-      if (e) hazards.push(e);
+      if (!e || seen.has(e.uuid)) continue;
+      seen.add(e.uuid);
+      hazards.push(e);
     }
   }
   for (const pack of itemPacks) {
