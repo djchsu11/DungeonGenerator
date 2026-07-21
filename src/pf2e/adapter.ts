@@ -24,6 +24,7 @@ interface Indexes {
   hazards: IndexEntry[];
   puzzles: IndexEntry[]; // subset of hazards with the "puzzle" trait
   items: IndexEntry[];
+  goldCoinUuid: string | null;
   ready: boolean;
 }
 
@@ -32,6 +33,7 @@ const state: Indexes = {
   hazards: [],
   puzzles: [],
   items: [],
+  goldCoinUuid: null,
   ready: false,
 };
 
@@ -157,11 +159,13 @@ async function buildIndex(): Promise<void> {
   state.hazards = hazards;
   state.puzzles = hazards.filter((h) => h.traits.includes("puzzle"));
   state.items = items;
+  const gold = items.find((it) => /^gold pieces?$/i.test(it.name));
+  state.goldCoinUuid = gold?.uuid ?? null;
   state.ready = true;
 
   console.info(
     `[dungeongen] Indexed ${creatures.length} creatures, ${hazards.length} hazards ` +
-      `(${state.puzzles.length} puzzles), ${items.length} items.`,
+      `(${state.puzzles.length} puzzles), ${items.length} items. gold=${state.goldCoinUuid ?? "not found"}`,
   );
 }
 
@@ -186,6 +190,11 @@ export function getPuzzles(): readonly IndexEntry[] {
 
 export function getItems(): readonly IndexEntry[] {
   return state.items;
+}
+
+/** UUID of the PF2e "Gold Pieces" treasure item, or null if not indexed yet. */
+export function getGoldCoinUuid(): string | null {
+  return state.goldCoinUuid;
 }
 
 /** For unit-test injection. */

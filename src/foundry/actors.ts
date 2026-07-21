@@ -5,6 +5,7 @@
  */
 import type { DungeonPlan, RoomContent } from "../types.js";
 import { MODULE_ID } from "../types.js";
+import { getGoldCoinUuid } from "../pf2e/adapter.js";
 
 const GRID_PX = 100;
 
@@ -133,15 +134,32 @@ async function makeLootActor(room: RoomContent): Promise<any | null> {
     }
   }
   if (room.loot.gp > 0) {
-    items.push({
-      name: "Gold Pieces",
-      type: "treasure",
-      system: {
-        quantity: room.loot.gp,
-        price: { value: { gp: 1 } },
-        stackGroup: "coins",
-      },
-    });
+    const goldUuid = getGoldCoinUuid();
+    let added = false;
+    if (goldUuid) {
+      try {
+        const goldSrc = await fromUuid(goldUuid);
+        if (goldSrc) {
+          const goldObj = goldSrc.toObject();
+          if (goldObj.system) goldObj.system.quantity = room.loot.gp;
+          items.push(goldObj);
+          added = true;
+        }
+      } catch (e) {
+        console.warn(`[${MODULE_ID}] Failed to import Gold Pieces item ${goldUuid}`, e);
+      }
+    }
+    if (!added) {
+      items.push({
+        name: "Gold Pieces",
+        type: "treasure",
+        system: {
+          quantity: room.loot.gp,
+          price: { value: { gp: 1 } },
+          stackGroup: "coins",
+        },
+      });
+    }
   }
   const data: any = {
     name: room.node.isBoss ? "Boss's Hoard" : room.loot.fromDefeated ? "Defeated Enemy's Cache" : "Treasure",
