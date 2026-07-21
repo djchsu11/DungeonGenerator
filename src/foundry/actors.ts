@@ -109,11 +109,16 @@ function packTokens(
       }
     }
     if (!placed) {
-      const col = Math.min(innerW - 1, Math.max(0, cx));
-      const row = Math.min(innerH - 1, Math.max(0, cy));
+      // Clamp fallback so the token FOOTPRINT (top-left + size) never
+      // extends past the room's inner bounds. Overlap with another token
+      // is acceptable; falling outside the room walls is not.
+      const maxCol = Math.max(0, innerW - size);
+      const maxRow = Math.max(0, innerH - size);
+      const col = Math.min(maxCol, Math.max(0, cx - Math.floor(size / 2)));
+      const row = Math.min(maxRow, Math.max(0, cy - Math.floor(size / 2)));
       result[i] = [(innerX + col) * GRID_PX, (innerY + row) * GRID_PX];
       console.warn(
-        `[dungeongen] Room too small to fit all tokens without overlap; overlapping placed near center.`,
+        `[dungeongen] Room too small to fit all tokens without overlap; overlapping placed near center (clamped in-bounds).`,
       );
     }
   }

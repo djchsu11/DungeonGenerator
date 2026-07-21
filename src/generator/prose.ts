@@ -23,8 +23,8 @@ export interface RoomProse {
 }
 
 export interface EncounterHint {
-  count: number;
-  primaryName?: string;
+  /** Distinct creature entries grouped by name, in descending count order. */
+  groups: Array<{ name: string; count: number }>;
 }
 
 export function generateReadAloud(
@@ -42,7 +42,7 @@ export function generateReadAloud(
   if (node.isBoss) {
     const climax = rng.pick(wb.climaxDescriptions);
     const detail = rng.pick(wb.featureDetails);
-    const enemyLine = encounter ? " " + monsterHint(encounter, rng, true) : "";
+    const enemyLine = encounter && encounter.groups.length > 0 ? " " + monsterHint(encounter, rng, true) : "";
     return `${climax} ${detail}${enemyLine}`;
   }
 
@@ -72,7 +72,7 @@ export function generateReadAloud(
 
   let extra = "";
   if (roomType === "empty" || rng.chance(0.4)) extra = " " + detail;
-  const enemyLine = encounter ? " " + monsterHint(encounter, rng, false) : "";
+  const enemyLine = encounter && encounter.groups.length > 0 ? " " + monsterHint(encounter, rng, false) : "";
   return `${opener} ${sensory} ${ambient}${extra}${enemyLine}`;
 }
 
@@ -95,21 +95,36 @@ function countPhrase(count: number, name: string): string {
   return `${numWord} ${pluralize(name, count)}`;
 }
 
+function joinList(parts: string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0]!;
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
 function monsterHint(enc: EncounterHint, rng: Rng, boss: boolean): string {
-  const name = enc.primaryName ?? "menacing figure";
-  const phrase = countPhrase(enc.count, name.toLowerCase());
+  const phrases = enc.groups.map((g) => countPhrase(g.count, g.name.toLowerCase()));
+  const listing = joinList(phrases);
   if (boss) {
+    // Boss rooms hint at a leader without naming, then mention any minions.
+    if (enc.groups.length === 1 && enc.groups[0]!.count === 1) {
+      return rng.weighted([
+        { weight: 2, value: `A commanding figure waits at the far end — plainly the master of this place.` },
+        { weight: 2, value: `At the far end, a lone figure watches your approach.` },
+        { weight: 1, value: `You are not alone: something large and deliberate stirs ahead.` },
+      ]);
+    }
     return rng.weighted([
-      { weight: 2, value: `At the far end waits ${phrase}, watching you approach.` },
-      { weight: 2, value: `${cap(phrase)} awaits — plainly the master of this place.` },
-      { weight: 1, value: `You are not alone: ${phrase} rises to meet you.` },
+      { weight: 2, value: `A commanding figure waits at the far end, flanked by ${listing}.` },
+      { weight: 2, value: `The room's master watches from a raised spot; ${listing} stand ready around them.` },
+      { weight: 1, value: `You are not alone: ${listing} guard a figure of clear authority.` },
     ]);
   }
   return rng.weighted([
-    { weight: 3, value: `You spot ${phrase} within.` },
-    { weight: 2, value: `${cap(phrase)} moves in the gloom ahead.` },
-    { weight: 2, value: `The room is not empty — ${phrase} awaits.` },
-    { weight: 1, value: `Something stirs: ${phrase}.` },
+    { weight: 3, value: `You spot ${listing} within.` },
+    { weight: 2, value: `${cap(listing)} move in the gloom ahead.` },
+    { weight: 2, value: `The room is not empty — ${listing} await.` },
+    { weight: 1, value: `Something stirs: ${listing}.` },
   ]);
 }
 

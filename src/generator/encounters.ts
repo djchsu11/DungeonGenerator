@@ -32,6 +32,13 @@ export interface EncounterOptions {
    * filtered out (or all, if the pool would be empty).
    */
   maxCreatureTiles?: number;
+  /**
+   * Maximum total floor area (in tiles) available for creatures. The
+   * encounter builder ensures the sum of each picked creature's footprint
+   * (sizeTiles²) does not exceed this, so the room can physically hold
+   * everything without overlap.
+   */
+  maxFloorTiles?: number;
 }
 
 function candidatesInLevelRange(
@@ -57,7 +64,15 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
   const { threat, partyLevel, partySize, filter, rng } = opts;
   const strictFamily = opts.strictFamily ?? true;
   const maxTiles = opts.maxCreatureTiles;
+  const maxFloor = opts.maxFloorTiles;
   const budget = encounterBudget(threat, partySize);
+
+  // Track total footprint so we don't pack more creatures than the room can hold.
+  let footprintUsed = 0;
+  const footprintFits = (size: number): boolean => {
+    if (maxFloor === undefined) return true;
+    return footprintUsed + size * size <= maxFloor;
+  };
 
   const anchorProfile = THREAT_ANCHOR_PROFILE[threat];
   let anchorPool = candidatesInLevelRange(
@@ -95,11 +110,16 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
   if (anchorPool.length > 0) {
     const usable = anchorPool
       .map((c) => ({ c, xp: creatureXp(c.level, partyLevel), weight: familyWeight(c, filter) }))
-      .filter((c) => c.xp !== null && c.xp <= budget) as Array<{ c: IndexEntry; xp: number; weight: number }>;
+      .filter((c) => c.xp !== null && c.xp <= budget && footprintFits(c.c.sizeTiles)) as Array<{
+        c: IndexEntry;
+        xp: number;
+        weight: number;
+      }>;
     if (usable.length > 0) {
       const anchor = rng.weighted(usable.map((u) => ({ value: u, weight: u.weight })));
       creatures.push({ uuid: anchor.c.uuid, name: anchor.c.name, level: anchor.c.level, xp: anchor.xp });
       xpSpent += anchor.xp;
+      footprintUsed += anchor.c.sizeTiles * anchor.c.sizeTiles;
     }
   }
 
@@ -112,11 +132,14 @@ export function buildEncounter(opts: EncounterOptions): EncounterContent {
     }
     const affordable = minionPool
       .map((c) => ({ c, xp: creatureXp(c.level, partyLevel), weight: familyWeight(c, filter) }))
-      .filter((c) => c.xp !== null && c.xp <= remaining) as Array<{ c: IndexEntry; xp: number; weight: number }>;
+      .filter(
+        (c) => c.xp !== null && c.xp <= remaining && footprintFits(c.c.sizeTiles),
+      ) as Array<{ c: IndexEntry; xp: number; weight: number }>;
     if (affordable.length === 0) break;
     const pick = rng.weighted(affordable.map((a) => ({ value: a, weight: a.weight })));
     creatures.push({ uuid: pick.c.uuid, name: pick.c.name, level: pick.c.level, xp: pick.xp });
     xpSpent += pick.xp;
+    footprintUsed += pick.c.sizeTiles * pick.c.sizeTiles;
     if (creatures.length >= 10) break;
   }
 

@@ -42,15 +42,34 @@ function threatForRoom(node: DungeonNode, climax: "severe" | "extreme"): Threat 
   return "moderate";
 }
 
-function summarizeEncounter(enc: {
-  creatures: Array<{ name: string }>;
-}): { count: number; primaryName?: string } {
-  if (!enc.creatures.length) return { count: 0 };
+function summarizeEncounter(
+  enc: {
+    creatures: Array<{ name: string; level: number }>;
+  },
+  isBoss: boolean,
+): { groups: Array<{ name: string; count: number }> } {
+  if (!enc.creatures.length) return { groups: [] };
+
+  let listing = enc.creatures;
+  if (isBoss) {
+    // Remove one instance of the highest-level creature (the boss) from the
+    // hint so the boss stays a surprise. Remaining creatures are described
+    // as minions/guards.
+    const sorted = enc.creatures
+      .map((c, i) => ({ c, i }))
+      .sort((a, b) => b.c.level - a.c.level);
+    const bossIdx = sorted[0]?.i;
+    if (bossIdx !== undefined) {
+      listing = enc.creatures.filter((_, i) => i !== bossIdx);
+    }
+  }
+
   const byName = new Map<string, number>();
-  for (const c of enc.creatures) byName.set(c.name, (byName.get(c.name) ?? 0) + 1);
-  const sorted = [...byName.entries()].sort((a, b) => b[1] - a[1]);
-  const primary = sorted[0]!;
-  return { count: enc.creatures.length, primaryName: primary[0] };
+  for (const c of listing) byName.set(c.name, (byName.get(c.name) ?? 0) + 1);
+  const groups = [...byName.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+  return { groups };
 }
 
 export interface GenerationResult {
@@ -97,15 +116,29 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
     const roomType = node.roomType;
     const extras: string[] = [];
     const room: RoomContent = { node, readAloud: "", gmNotes: "" };
-    let encounterHint: { count: number; primaryName?: string } | undefined;
+    let encounterHint: { groups: Array<{ name: string; count: number }> } | undefined;
 
     if (roomType === "combat") {
       const threat = threatForRoom(node, climax);
       node.threat = threat;
-      const maxCreatureTiles = node.rect
-        ? Math.max(1, Math.min(node.rect.w, node.rect.h) - 2)
-        : undefined;
-      const enc = buildEncounter({ threat, partyLevel, partySize, filter, rng, maxCreatureTiles });
+      const innerW = node.rect ? Math.max(1, node.rect.w - 2) : undefined;
+      const innerH = node.rect ? Math.max(1, node.rect.h - 2) : undefined;
+      const maxCreatureTiles =
+        innerW !== undefined && innerH !== undefined ? Math.max(1, Math.min(innerW, innerH)) : undefined;
+      // Reserve ~30% of interior floor space for movement gaps and loot tokens.
+      const maxFloorTiles =
+        innerW !== undefined && innerH !== undefined
+          ? Math.max(1, Math.floor(innerW * innerH * 0.7))
+          : undefined;
+      const enc = buildEncounter({
+        threat,
+        partyLevel,
+        partySize,
+        filter,
+        rng,
+        maxCreatureTiles,
+        maxFloorTiles,
+      });
       room.encounter = enc;
       if (node.isBoss || node.isMiniBoss) {
         const ident = generateBossIdentity(rng);
@@ -121,7 +154,7 @@ export async function planDungeon(input: GenerationInput): Promise<GenerationRes
         if (drop && (drop.items.length > 0 || drop.gp > 0)) room.loot = drop;
       }
       extras.push(`Encounter: ${enc.creatures.length} creatures, ${enc.xpSpent}/${enc.xpBudget} XP (${threat}).`);
-      encounterHint = summarizeEncounter(enc);
+      encounterHint = summarizeEncounter(enc, !!node.isBoss);
     } else if (roomType === "hazard") {
       const hz = pickHazard(partyLevel, archetype, rng);
       if (hz) {
