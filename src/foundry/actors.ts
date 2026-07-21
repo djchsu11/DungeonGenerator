@@ -143,6 +143,22 @@ function markUnidentified(obj: any): void {
   // display the item as "Unidentified Wand", "Unidentified Scroll", etc.
 }
 
+/**
+ * Neutralize an item so it sits inertly in the loot pile: nothing worn,
+ * nothing held, nothing invested. Without this, PF2e will happily "apply"
+ * a +1 rune, invested runestone, or bracers-of-armor rule element to the
+ * chest actor, causing the chest to gain the item's benefits instead of
+ * simply containing the item.
+ */
+function makeInertLoot(obj: any): void {
+  if (!obj?.system) return;
+  obj.system.equipped = obj.system.equipped ?? {};
+  obj.system.equipped.carryType = "stowed";
+  obj.system.equipped.handsHeld = 0;
+  obj.system.equipped.invested = false;
+  obj.system.equipped.inSlot = false;
+}
+
 async function makeLootActor(room: RoomContent): Promise<any | null> {
   if (!room.loot || (room.loot.items.length === 0 && room.loot.gp === 0)) return null;
   const items: any[] = [];
@@ -151,6 +167,7 @@ async function makeLootActor(room: RoomContent): Promise<any | null> {
       const src = await fromUuid(it.uuid);
       if (src) {
         const obj = src.toObject();
+        makeInertLoot(obj);
         if (isMagicItem(obj)) markUnidentified(obj);
         items.push(obj);
       }
@@ -167,6 +184,7 @@ async function makeLootActor(room: RoomContent): Promise<any | null> {
         if (goldSrc) {
           const goldObj = goldSrc.toObject();
           if (goldObj.system) goldObj.system.quantity = room.loot.gp;
+          makeInertLoot(goldObj);
           items.push(goldObj);
           added = true;
         }
@@ -182,6 +200,7 @@ async function makeLootActor(room: RoomContent): Promise<any | null> {
           quantity: room.loot.gp,
           price: { value: { gp: 1 } },
           stackGroup: "coins",
+          equipped: { carryType: "stowed", handsHeld: 0, invested: false, inSlot: false },
         },
       });
     }
@@ -189,8 +208,11 @@ async function makeLootActor(room: RoomContent): Promise<any | null> {
   const data: any = {
     name: room.node.isBoss ? "Boss's Hoard" : room.loot.fromDefeated ? "Defeated Enemy's Cache" : "Treasure",
     type: "loot",
+    // "Loot" sheet type keeps the actor as a passive container — items are
+    // listed for players to loot rather than being merchant inventory or
+    // applied to the actor as a creature.
     system: {
-      lootSheetType: "Merchant",
+      lootSheetType: "Loot",
     },
     items,
   };
