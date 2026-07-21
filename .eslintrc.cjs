@@ -1,0 +1,47 @@
+module.exports = {
+  root: true,
+  parser: "@typescript-eslint/parser",
+  parserOptions: {
+    ecmaVersion: 2022,
+    sourceType: "module",
+    project: false,
+  },
+  plugins: ["@typescript-eslint"],
+  extends: [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier",
+  ],
+  env: {
+    browser: true,
+    es2022: true,
+    node: true,
+  },
+  ignorePatterns: ["dist/", "node_modules/", "*.config.ts", "*.config.js"],
+  rules: {
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+    ],
+    "@typescript-eslint/no-explicit-any": "off",
+    "no-console": ["warn", { allow: ["warn", "error", "info"] }],
+  },
+  globals: {
+    game: "readonly",
+    ui: "readonly",
+    canvas: "readonly",
+    CONFIG: "readonly",
+    Hooks: "readonly",
+    foundry: "readonly",
+    fromUuid: "readonly",
+    Scene: "readonly",
+    JournalEntry: "readonly",
+    Actor: "readonly",
+    Folder: "readonly",
+    FilePicker: "readonly",
+    ChatMessage: "readonly",
+    Dialog: "readonly",
+    Application: "readonly",
+    Handlebars: "readonly",
+  },
+};

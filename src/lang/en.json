@@ -1,0 +1,14 @@
+{
+  "DUNGEONGEN.form.name": "Dungeon Name",
+  "DUNGEONGEN.form.partyLevel": "Party Level (1-20)",
+  "DUNGEONGEN.form.family": "Monster Family",
+  "DUNGEONGEN.form.familyTraits": "Additional Traits",
+  "DUNGEONGEN.form.familyTraitsHint": "Only used if no Family is picked above. Comma-separated PF2e traits (e.g. goblin, dog).",
+  "DUNGEONGEN.form.archetype": "Archetype",
+  "DUNGEONGEN.form.size": "Dungeon Size",
+  "DUNGEONGEN.form.lighting": "Lighting",
+  "DUNGEONGEN.form.lootGenerosity": "Loot Generosity",
+  "DUNGEONGEN.form.puzzleDensity": "Puzzle Density",
+  "DUNGEONGEN.form.climax": "Climax Encounter Threat",
+  "DUNGEONGEN.form.generate": "Generate Dungeon"
+}

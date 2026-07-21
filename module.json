@@ -1,0 +1,41 @@
+{
+  "id": "dungeongen",
+  "title": "Dungeon Generator for PF2e",
+  "description": "Random dungeon generator for Pathfinder 2e. Generates a full Foundry Scene with encounters, hazards, puzzles, and loot appropriate for a given party level, with optional monster family and archetype constraints.",
+  "version": "0.1.0",
+  "authors": [
+    {
+      "name": "dclark"
+    }
+  ],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "13"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "6.0.0"
+        }
+      }
+    ]
+  },
+  "esmodules": ["dungeongen.js"],
+  "styles": ["dungeongen.css"],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "url": "https://github.com/dclark/DungeonGenerator",
+  "manifest": "https://github.com/dclark/DungeonGenerator/releases/latest/download/module.json",
+  "download": "https://github.com/dclark/DungeonGenerator/releases/latest/download/module.zip",
+  "readme": "https://github.com/dclark/DungeonGenerator/blob/main/README.md",
+  "license": "MIT"
+}

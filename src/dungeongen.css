@@ -1,0 +1,44 @@
+.dungeongen-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.dungeongen-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dungeongen-form .form-group label {
+  font-weight: 600;
+}
+
+.dungeongen-form .form-group .hint {
+  font-size: 0.8em;
+  color: #888;
+  margin: 0.15rem 0 0 0;
+}
+
+.dungeongen-form input,
+.dungeongen-form select {
+  padding: 0.35rem;
+  font-size: 0.95em;
+}
+
+.dungeongen-form .form-footer {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dungeongen-form .form-footer button {
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+}
+
+.dungeongen-generate-btn {
+  margin-top: 4px;
+  width: 100%;
+}
