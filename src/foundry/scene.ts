@@ -26,10 +26,27 @@ async function uploadBackground(sceneName: string, blob: Blob): Promise<string> 
     /* directory may already exist */
   }
   const safeName = sceneName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const file = new File([blob], `${safeName}-${Date.now()}.png`, { type: "image/png" });
+  const fileName = `${safeName}-${Date.now()}.png`;
+  const relativePath = `${dir}/${fileName}`;
+  const file = new File([blob], fileName, { type: "image/png" });
   const result = await FP.upload("data", dir, file, {}, { notify: false });
-  const path = typeof result === "object" && result?.path ? result.path : `${dir}/${file.name}`;
-  console.info(`[${MODULE_ID}] Uploaded background to ${path}`);
+
+  let returnedPath: string | undefined =
+    typeof result === "object" && typeof result?.path === "string" ? result.path : undefined;
+
+  let path = relativePath;
+  if (returnedPath) {
+    if (/^https?:\/\//i.test(returnedPath)) {
+      const idx = returnedPath.indexOf("/worlds/");
+      if (idx !== -1) {
+        path = returnedPath.slice(idx + 1);
+      }
+    } else {
+      path = returnedPath;
+    }
+  }
+
+  console.info(`[${MODULE_ID}] Uploaded background. server=${returnedPath} using=${path}`);
   return path;
 }
 
@@ -85,8 +102,7 @@ export async function buildScene(
   if (!currentBg || currentBg !== bgPath) {
     console.warn(`[${MODULE_ID}] Scene background not set as expected, updating explicitly.`);
     await scene.update({
-      background: { src: bgPath, offsetX: 0, offsetY: 0, tint: null },
-      img: bgPath,
+      background: { src: bgPath, tint: null },
       thumb: null,
     });
     console.info(`[${MODULE_ID}] After update, scene.background=`, scene?.background);

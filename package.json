@@ -1,6 +1,6 @@
 {
   "name": "dungeongen",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Random dungeon generator for Pathfinder 2e in Foundry VTT",
   "private": true,
   "type": "module",
