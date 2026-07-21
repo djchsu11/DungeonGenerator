@@ -7,6 +7,7 @@ import { planDungeon } from "./generator/index.js";
 import { buildScene } from "./foundry/scene.js";
 import { placeTokens } from "./foundry/actors.js";
 import { buildJournal } from "./foundry/journal.js";
+import { placeRoomNotes } from "./foundry/notes.js";
 import { ensureFolders } from "./foundry/compendium.js";
 import type { GenerationInput } from "./types.js";
 
@@ -41,6 +42,12 @@ export async function generate(input: GenerationInput): Promise<GenerateResult> 
   }
 
   const journal = await buildJournal(plan, folders.journalFolder);
+
+  try {
+    await placeRoomNotes(plan, scene, journal);
+  } catch (e) {
+    console.error("[dungeongen] placeRoomNotes failed:", e);
+  }
 
   ui.notifications?.info(`Dungeon Generator: "${plan.name}" ready.`);
 
