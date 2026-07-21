@@ -122,13 +122,33 @@ function packTokens(
   return positions;
 }
 
+function isMagicItem(obj: any): boolean {
+  if (!obj) return false;
+  if (obj.type === "treasure") return false;
+  const traits: string[] = obj?.system?.traits?.value ?? [];
+  return traits.includes("magical") || traits.includes("invested");
+}
+
+function markUnidentified(obj: any): void {
+  if (!obj?.system) return;
+  obj.system.identification = obj.system.identification ?? {};
+  obj.system.identification.status = "unidentified";
+  // PF2e populates default unidentified name/description from item type — no
+  // need to override those; setting status alone is enough for the sheet to
+  // display the item as "Unidentified Wand", "Unidentified Scroll", etc.
+}
+
 async function makeLootActor(room: RoomContent): Promise<any | null> {
   if (!room.loot || (room.loot.items.length === 0 && room.loot.gp === 0)) return null;
   const items: any[] = [];
   for (const it of room.loot.items) {
     try {
       const src = await fromUuid(it.uuid);
-      if (src) items.push(src.toObject());
+      if (src) {
+        const obj = src.toObject();
+        if (isMagicItem(obj)) markUnidentified(obj);
+        items.push(obj);
+      }
     } catch {
       /* skip bad uuid */
     }
